@@ -335,39 +335,46 @@ function buildLeadersFromCSV(rows) {
 }
 
 // ════════════ DATA BANNER ════════════
-function showDataBanner(source) {
+function showDataBanner(source, extra) {
   const b = document.getElementById('data-banner');
   if (source === 'sheets') {
-    b.textContent = '✓ Datos actualizados desde Google Sheets';
+    b.textContent = '✓ Datos desde Google Sheets · ' + (extra||'');
     b.style.cssText = 'display:block;background:#f0fdf4;color:#16a34a;border-color:#bbf7d0;padding:5px 20px;font-size:.71rem;font-weight:600;border-bottom:1px solid;';
   } else {
-    b.textContent = '⚠ Google Sheets no disponible · Mostrando datos de respaldo';
+    b.textContent = '⚠ Usando datos de respaldo · ' + (extra||'');
     b.style.cssText = 'display:block;background:#fffbeb;color:#92400e;border-color:#fde68a;padding:5px 20px;font-size:.71rem;font-weight:600;border-bottom:1px solid;';
   }
-  setTimeout(() => b.style.display = 'none', 5000);
+  // No ocultar — visible siempre
 }
 
 // ════════════ INIT ════════════
 async function init() {
   let source = 'fallback';
+  let debugMsg = '';
   try {
+    console.log('Fetching:', FETCH_URL);
     const res = await fetch(FETCH_URL, { cache: 'no-cache' });
     const text = await res.text();
+    console.log('CSV length:', text.length, '| Preview:', text.slice(0,120));
     if (text && text.length > 200) {
       const rows = parseCSV(text);
+      console.log('Rows parsed:', rows.length);
       const built = buildLeadersFromCSV(rows);
+      console.log('Leaders built:', built.length, built.map(l=>l.short));
       if (built.length > 0) {
         LEADERS = built;
         source = 'sheets';
+        debugMsg = built.length + ' líderes · ' + new Date().toLocaleTimeString();
       } else {
-        throw new Error('No leaders in CSV');
+        throw new Error('0 líderes encontrados en CSV');
       }
     } else {
-      throw new Error('Empty response');
+      throw new Error('Respuesta vacía (' + text.length + ' chars)');
     }
   } catch(e) {
-    console.warn('Sheets fetch failed:', e.message, '— usando fallback');
+    console.warn('Sheets fetch failed:', e.message);
     LEADERS = FALLBACK_LEADERS;
+    debugMsg = e.message;
   }
 
   ACTIVE_LEADERS = LEADERS.filter(l => !l.empty && l.members.length > 0);
@@ -384,7 +391,7 @@ async function init() {
   renderCards();
 
   document.getElementById('loading-overlay').style.display = 'none';
-  showDataBanner(source);
+  showDataBanner(source, debugMsg);
 }
 
 // ════════════ TABS ════════════
