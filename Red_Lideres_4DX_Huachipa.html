@@ -206,32 +206,6 @@ const FETCH_URL = window.location.protocol === 'file:'
   ? 'https://api.allorigins.win/raw?url=' + encodeURIComponent(SHEETS_URL)
   : SHEETS_URL;
 
-// ════════════ FALLBACK DATA (respaldo si Google Sheets no carga) ════════════
-const FALLBACK_LEADERS = [
-  {id:"Anibal Ramirez Flores",        short:"Anibal R.",   full:"Anibal Ramirez Flores",            a1:"SI",a2:"",ag:"SI",  members:["Juan Martinez","Huanca Tineo","Marco Neira"]},
-  {id:"Jose Eduardo Venturi Gaete",   short:"Jose V.",     full:"Jose Eduardo Venturi Gaete",        a1:"SI",a2:"",ag:"SI",  members:["Wendy Fernandez","Erick Bustamante","Robinzon Huamaní","Elmer Mendoza","Dayana Huamaní","Antonio Alfaro","Sheyla Coral","Luz Berrocal"],dual:true,dualIn:"Lita Isela Ortiz Mendoza"},
-  {id:"Carlos Samuel Contreras Mendoza",short:"Carlos C.", full:"Carlos Samuel Contreras Mendoza",   a1:"SI",a2:"",ag:"NO",  members:["Cristofer Oviedo","Maireen Matamoros","Joao Jorge","Erick Galarza","Juan Tolentino"]},
-  {id:"Carlos Leomant Espinoza Castro",short:"Carlos E.",  full:"Carlos Leomant Espinoza Castro",    a1:"SI",a2:"",ag:"NO",  members:["Jaime","German","Yasser Y.","Cristofer","Cristhian Valverde"]},
-  {id:"Carlos Alberto Martinez Bonifacio",short:"Carlos M.",full:"Carlos Alberto Martinez Bonifacio",a1:"SI",a2:"",ag:"SI",  members:["Fernando Contreras","Javier Arica","Miguel Fernandez","Oscar Paima","Ruth"]},
-  {id:"Cristofer Junior Codina Valentin",short:"Cristofer C.",full:"Cristofer Junior Codina Valentin",a1:"SI",a2:"",ag:"NO", members:["Fredy Santiago","Mayra Sotomayor","Luis Chira","Fredy Morales","Angel"],dual:true,dualIn:"Rommel Martin Solis Dongo"},
-  {id:"Silvia Elizabeth Espinoza Sanchez",short:"Silvia E.",full:"Silvia Elizabeth Espinoza Sanchez",a1:"SI",a2:"",ag:"NO",  members:["Yaquelin Galarza","Karla Cañari","Marlene Regalado","Víctor Sanchez"]},
-  {id:"Henry Alex Liñan Ramirez",      short:"Henry L.",   full:"Henry Alex Liñan Ramirez",          a1:"SI",a2:"",ag:"SI",  members:["Osmar Santacruz","Jennifer Calizaya","Vazclav"],dual:true,dualIn:"Osmar Santa Cruz Ortega"},
-  {id:"Idalia Rios Yangua",            short:"Idalia R.",  full:"Idalia Rios Yangua",                a1:"SI",a2:"",ag:"SI",  members:["Andy Ñique","Gerson Chirinos","Miguel León","Bladimir Bellido","Nicole Gonero"]},
-  {id:"Karla Roxana Cañari Flores",    short:"Karla C.",   full:"Karla Roxana Cañari Flores",        a1:"SI",a2:"",ag:"SI",  members:["Elizabeth Espinoza","Yaquelin Galarza","Marlene Regalado","Víctor Sanchez"]},
-  {id:"Laura Janet Arones Vasquez",    short:"Laura A.",   full:"Laura Janet Arones Vasquez",        a1:"SI",a2:"",ag:"NO",  members:["Jesús Barrientos","Paulo Rodríguez","Solíz Pérez Chuin"]},
-  {id:"Lita Isela Ortiz Mendoza",      short:"Lita O.",    full:"Lita Isela Ortiz Mendoza",          a1:"SI",a2:"",ag:"",    members:["Venturi","Nancy"]},
-  {id:"Orlando Luis Boada Guerrero",   short:"Orlando B.", full:"Orlando Luis Boada Guerrero",       a1:"SI",a2:"",ag:"NO",  members:["Nerio Nuñez","Ramón Ricra","Sheyla Coral"],dual:true,dualIn:"Rommel Martin Solis Dongo"},
-  {id:"Marisol Uturunco Cota",         short:"Marisol U.", full:"Marisol Uturunco Cota",             a1:"SI",a2:"",ag:"NO",  members:["Luz Ravichahua","Nefi Aguilar","Víctor Sánchez H.","Javier Bermudez","Cristhian Oré","Juan Ayra"]},
-  {id:"Marleni Myriam Regalado Tenorio",short:"Marleni R.",full:"Marleni Myriam Regalado Tenorio",   a1:"NO",a2:"",ag:"SI",  members:["Brayan Portal","Elizabeth Espinoza","Yaquelin Galarza","Karla Cañari","Víctor Sanchez"]},
-  {id:"Luis Omar Peña Roman",          short:"Luis P.",    full:"Luis Omar Peña Roman",              a1:"SI",a2:"",ag:"NO",  members:["Jayson Uribe","Pedro Delgadillo","Gutarra Apaza","Leonardo Hernández"]},
-  {id:"Osmar Santa Cruz Ortega",       short:"Osmar SC.",  full:"Osmar Santa Cruz Ortega",           a1:"SI",a2:"",ag:"NO",  members:["Jennifer Calizaya","Vaclav Zeleny","Henry Liñan"],dual:true,dualIn:"Rommel Martin Solis Dongo"},
-  {id:"Rommel Martin Solis Dongo",     short:"Rommel S.",  full:"Rommel Martin Solis Dongo",         a1:"SI",a2:"",ag:"NO",  members:["Osmar Santacruz","Orlando Boada","Cristofer Codina"]},
-  {id:"Maximo Ebert Soria Osorio",     short:"Maximo S.",  full:"Maximo Ebert Soria Osorio",         a1:"SI",a2:"",ag:"NO",  members:["Henry Medina","Erika Macha"]},
-  {id:"Victor Angel Sanchez Alberca",  short:"Victor S.",  full:"Victor Angel Sanchez Alberca",      a1:"SI",a2:"",ag:"NO",  members:["Elizabeth Espinoza","Yaquelin Galarza","Karla Cañari","Marlene Regalado","Víctor Sanchez jr."]},
-  {id:"Yaquelin Roset Galarza Figueroa",short:"Yaquelin G.",full:"Yaquelin Roset Galarza Figueroa",  a1:"SI",a2:"",ag:"SI",  members:["Marlene Regalado","Yaquelin G. jr."]},
-  {id:"Yasser Abelardo Yparraguirre Zelada",short:"Yasser Y.",full:"Yasser Abelardo Yparraguirre Zelada",a1:"SI",a2:"",ag:"NO",members:["Jaime","German","Carlos Espinoza","Cristofer","Cristhian Valverde"]},
-  {id:"Wendy Erica Fernandez Andia",   short:"Wendy F.",   full:"Wendy Erica Fernandez Andia",       a1:"NO",a2:"",ag:"NO",  members:["Antonio Justino","Erick Bustamante","Robinzon Huamaní","Elmer Mendoza","Dayana Huamaní","Antonio Alfaro","Sheyla Coral","Luz Berrocal"],dual:true,dualIn:"Jose Eduardo Venturi Gaete"}
-];
 
 // ════════════ GLOBALS ════════════
 let LEADERS = [], ACTIVE_LEADERS = [], memberCount = {};
@@ -373,8 +347,15 @@ async function init() {
     }
   } catch(e) {
     console.warn('Sheets fetch failed:', e.message);
-    LEADERS = FALLBACK_LEADERS;
     debugMsg = e.message;
+    document.getElementById('loading-overlay').innerHTML =
+      `<div style="text-align:center;color:#dc2626;font-size:.85rem;padding:20px">
+        <div style="font-size:2rem;margin-bottom:10px">⚠</div>
+        <b>No se pudo cargar Google Sheets</b><br>
+        <span style="color:#64748b;font-size:.75rem">${e.message}</span><br><br>
+        <button onclick="location.reload()" style="padding:6px 16px;background:#2563eb;color:#fff;border:none;border-radius:6px;cursor:pointer">Reintentar</button>
+      </div>`;
+    return;
   }
 
   ACTIVE_LEADERS = LEADERS.filter(l => !l.empty && l.members.length > 0);
