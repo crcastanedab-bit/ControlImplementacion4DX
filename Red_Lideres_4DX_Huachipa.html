@@ -335,13 +335,9 @@ async function init() {
       console.log('Rows parsed:', rows.length);
       const built = buildLeadersFromCSV(rows);
       console.log('Leaders built:', built.length, built.map(l=>l.short));
-      if (built.length > 0) {
-        LEADERS = built;
-        source = 'sheets';
-        debugMsg = built.length + ' líderes · ' + new Date().toLocaleTimeString();
-      } else {
-        throw new Error('0 líderes encontrados en CSV');
-      }
+      LEADERS = built;
+      source = 'sheets';
+      debugMsg = built.length + ' líderes · ' + new Date().toLocaleTimeString();
     } else {
       throw new Error('Respuesta vacía (' + text.length + ' chars)');
     }
