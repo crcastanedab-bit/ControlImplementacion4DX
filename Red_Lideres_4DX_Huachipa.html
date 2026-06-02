@@ -251,17 +251,35 @@ function makeShort(full) {
 }
 
 function buildLeadersFromCSV(rows) {
-  // rows[0] = blank row, rows[1] = headers, rows[2+] = data
-  const data = rows.slice(2).filter(r => r.length > 5 && r[2]);
+  // Detectar fila de headers automáticamente
+  let headerIdx = -1, headers = [];
+  for (let i = 0; i < Math.min(rows.length, 6); i++) {
+    if (rows[i].some(c => c.toLowerCase().includes('colaborador'))) {
+      headerIdx = i;
+      headers = rows[i].map(h => h.toLowerCase().trim());
+      break;
+    }
+  }
+  if (headerIdx === -1) { console.warn('Headers no encontrados'); return []; }
 
-  // Column indices (0-based):
-  // 1=Planta, 2=Colaborador, 3=Asist S1, 6=Asist S2, 8=Equipo, 9=Grupos, 10=Agendado
-  const C = { planta:1, col:2, a1:3, a2:6, equipo:8, grupos:9, ag:10 };
+  // Detectar columnas por nombre
+  const fi = (terms) => headers.findIndex(h => terms.some(t => h.includes(t)));
+  const C = {
+    col:    fi(['colaborador']),
+    a1:     fi(['asistencia s1','asistencia s 1']),
+    a2:     fi(['asistencia s2','asistencia s 2']),
+    equipo: fi(['equipo']),
+    grupos: fi(['grupos']),
+    ag:     fi(['agendado']),
+  };
+  console.log('Columnas detectadas:', C);
+
+  const data = rows.slice(headerIdx + 1).filter(r => r.length > 3 && (r[C.col]||'').trim());
 
   const withTeam = data.filter(r => {
-    const eq = (r[C.equipo]||'').trim().replace('Í','I').toUpperCase();
+    const eq = (r[C.equipo]||'').trim().toUpperCase().replace(/Í/g,'I').replace(/Ì/g,'I');
     const gr = (r[C.grupos]||'').trim();
-    return (eq === 'SI') && gr && gr !== '-';
+    return eq === 'SI' && gr && gr !== '-';
   });
 
   const leaders = withTeam.map(r => {
