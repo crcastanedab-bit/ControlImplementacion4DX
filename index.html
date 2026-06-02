@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>4DX · Control de Implementación 2026</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;}
+body{background:#f1f5f9;color:#1e293b;font-family:'Segoe UI',Arial,sans-serif;min-height:100vh;display:flex;flex-direction:column;}
+
+/* ─── HERO ─── */
+.hero{
+  background:linear-gradient(135deg,#1e3a8a 0%,#1d4ed8 55%,#3b82f6 100%);
+  padding:56px 40px 64px;
+  text-align:center;
+  position:relative;overflow:hidden;
+}
+.hero-grid{
+  position:absolute;inset:0;
+  background-image:linear-gradient(#ffffff06 1px,transparent 1px),linear-gradient(90deg,#ffffff06 1px,transparent 1px);
+  background-size:44px 44px;pointer-events:none;
+}
+.hero-inner{position:relative;z-index:1;}
+.hero-eyebrow{
+  display:inline-flex;align-items:center;gap:7px;
+  background:#ffffff18;border:1px solid #ffffff25;border-radius:20px;
+  padding:4px 14px;font-size:.65rem;font-weight:700;color:#bfdbfe;
+  text-transform:uppercase;letter-spacing:1px;margin-bottom:20px;
+}
+.hero-dot{width:6px;height:6px;border-radius:50%;background:#4ade80;animation:pulse 2s infinite;}
+@keyframes pulse{0%,100%{opacity:1;transform:scale(1);}50%{opacity:.5;transform:scale(1.4);}}
+.hero-title{font-size:2.6rem;font-weight:800;color:#fff;line-height:1.15;letter-spacing:-.5px;margin-bottom:12px;}
+.hero-title span{color:#93c5fd;}
+.hero-sub{font-size:.88rem;color:#bfdbfe;max-width:420px;margin:0 auto;line-height:1.6;}
+
+/* ─── SECCIÓN WRAPPER ─── */
+.section{max-width:880px;margin:0 auto;width:100%;padding:32px 32px 0;}
+.sec-label{font-size:.62rem;font-weight:700;text-transform:uppercase;letter-spacing:.9px;color:#94a3b8;margin-bottom:14px;display:flex;align-items:center;gap:8px;}
+.sec-label::after{content:'';flex:1;height:1px;background:#e2e8f0;}
+
+/* ─── PLANTAS ─── */
+.plants{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;}
+
+.plant-card{
+  border-radius:14px;padding:0;
+  text-decoration:none;color:inherit;
+  display:flex;flex-direction:column;
+  overflow:hidden;
+  border:1px solid var(--border);
+  transition:transform .15s,box-shadow .15s;
+  background:#fff;
+}
+.plant-card:hover{transform:translateY(-3px);box-shadow:0 10px 30px var(--shadow);}
+
+/* Cabecera coloreada de la card */
+.pc-head{
+  background:var(--bg);
+  padding:20px 20px 16px;
+  border-bottom:1px solid var(--border);
+  display:flex;align-items:flex-start;justify-content:space-between;
+}
+.pc-icon{font-size:1.6rem;line-height:1;}
+.pc-label{font-size:.58rem;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--ac);margin-bottom:3px;}
+.pc-name{font-size:1.1rem;font-weight:800;color:var(--ac);}
+
+/* Cuerpo blanco */
+.pc-body{padding:16px 20px 18px;flex:1;display:flex;flex-direction:column;gap:6px;}
+.pc-count{font-size:.72rem;color:#64748b;}
+.pc-go{
+  margin-top:auto;padding-top:14px;
+  display:flex;align-items:center;justify-content:space-between;
+  font-size:.75rem;font-weight:700;color:var(--ac);
+  border-top:1px solid #f1f5f9;
+}
+.pc-coming .pc-go{color:#94a3b8;font-weight:500;}
+.soon-tag{font-size:.56rem;padding:2px 7px;border-radius:5px;background:#fffbeb;color:#92400e;border:1px solid #fde68a;font-weight:700;}
+
+/* Colores por planta via CSS vars */
+.c-blue{--ac:#1d4ed8;--bg:#eff6ff;--border:#bfdbfe;--shadow:#1d4ed815;}
+.c-green{--ac:#059669;--bg:#f0fdf4;--border:#bbf7d0;--shadow:#05966915;}
+.c-violet{--ac:#7c3aed;--bg:#f5f3ff;--border:#ddd6fe;--shadow:#7c3aed15;}
+
+/* ─── DOCUMENTACIÓN ─── */
+.docs-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
+
+.doc-card{
+  background:#fff;border:1px solid #e2e8f0;border-radius:14px;
+  padding:20px;display:flex;gap:14px;align-items:flex-start;
+  text-decoration:none;color:inherit;
+  transition:transform .15s,box-shadow .15s;
+}
+.doc-card:hover{transform:translateY(-2px);box-shadow:0 6px 22px #0002;}
+.doc-icon{
+  width:40px;height:40px;border-radius:10px;flex-shrink:0;
+  display:flex;align-items:center;justify-content:center;font-size:1.1rem;
+}
+.doc-title{font-size:.8rem;font-weight:700;color:#1e293b;margin-bottom:4px;}
+.doc-desc{font-size:.67rem;color:#64748b;line-height:1.45;}
+.doc-arrow{margin-left:auto;font-size:.85rem;color:#94a3b8;align-self:center;flex-shrink:0;}
+.doc-card:hover .doc-arrow{color:#1d4ed8;}
+
+/* ─── FOOTER ─── */
+footer{margin-top:auto;padding:28px 32px 20px;text-align:center;font-size:.62rem;color:#94a3b8;border-top:1px solid #e2e8f0;margin-top:36px;}
+
+@media(max-width:680px){
+  .hero{padding:40px 20px 48px;}
+  .hero-title{font-size:1.8rem;}
+  .section{padding:24px 16px 0;}
+  .plants{grid-template-columns:1fr;}
+  .docs-grid{grid-template-columns:1fr;}
+}
+</style>
+</head>
+<body>
+
+<!-- ── HERO ── -->
+<section class="hero">
+  <div class="hero-grid"></div>
+  <div class="hero-inner">
+    <div class="hero-eyebrow"><span class="hero-dot"></span>Programa activo · 2026-1</div>
+    <h1 class="hero-title">Implementación <span>4DX</span><br>Seguimiento de Sesiones</h1>
+    <p class="hero-sub">Panel de control para las plantas de Ate, Huachipa e Independencia. Selecciona una planta para continuar.</p>
+  </div>
+</section>
+
+<!-- ── PLANTAS ── -->
+<div class="section" style="padding-top:36px;">
+  <div class="sec-label">Selecciona una planta</div>
+  <div class="plants">
+
+    <a href="pages/huachipa.html" class="plant-card c-blue">
+      <div class="pc-head">
+        <div>
+          <div class="pc-label">Planta</div>
+          <div class="pc-name">Huachipa</div>
+        </div>
+        <div class="pc-icon">🏭</div>
+      </div>
+      <div class="pc-body">
+        <div class="pc-count">45 participantes · 24 con equipo</div>
+        <div class="pc-go">Abrir dashboard <span>→</span></div>
+      </div>
+    </a>
+
+    <a href="pages/dashboard-ate.html" class="plant-card pc-coming c-green">
+      <div class="pc-head">
+        <div>
+          <div class="pc-label">Planta</div>
+          <div class="pc-name">Ate</div>
+        </div>
+        <div class="pc-icon">🏢</div>
+      </div>
+      <div class="pc-body">
+        <div class="pc-count">42 participantes</div>
+        <div class="pc-go">Ver dashboard <span class="soon-tag">Próximo</span></div>
+      </div>
+    </a>
+
+    <a href="pages/dashboard-independencia.html" class="plant-card pc-coming c-violet">
+      <div class="pc-head">
+        <div>
+          <div class="pc-label">Planta</div>
+          <div class="pc-name">Independencia</div>
+        </div>
+        <div class="pc-icon">🏗</div>
+      </div>
+      <div class="pc-body">
+        <div class="pc-count">27 participantes</div>
+        <div class="pc-go">Ver dashboard <span class="soon-tag">Próximo</span></div>
+      </div>
+    </a>
+
+  </div>
+</div>
+
+<!-- ── DOCUMENTACIÓN ── -->
+<div class="section" style="padding-top:28px;padding-bottom:0;">
+  <div class="sec-label">Documentación</div>
+  <div class="docs-grid">
+
+    <a href="pages/como-funciona.html" class="doc-card">
+      <div class="doc-icon" style="background:#eff6ff;">⚙️</div>
+      <div>
+        <div class="doc-title">¿Cómo funciona este dashboard?</div>
+        <div class="doc-desc">Explica la fuente de datos (Google Sheets), cómo se actualizan los dashboards y qué representa cada indicador.</div>
+      </div>
+      <div class="doc-arrow">→</div>
+    </a>
+
+    <a href="pages/readme.html" class="doc-card">
+      <div class="doc-icon" style="background:#fffbeb;">📖</div>
+      <div>
+        <div class="doc-title">Metodología 4DX · Guía del programa</div>
+        <div class="doc-desc">Disciplinas de ejecución, glosario de columnas, niveles de participantes e interpretación de resultados.</div>
+      </div>
+      <div class="doc-arrow">→</div>
+    </a>
+
+  </div>
+</div>
+
+<footer>4DX · Control de Implementación 2026-1 &nbsp;·&nbsp; Netlify</footer>
+
+</body>
+</html>
