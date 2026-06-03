@@ -1,0 +1,500 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>4DX · Seguimiento de Asistencias · Huachipa</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;}
+body{background:#f1f5f9;color:#1e293b;font-family:'Segoe UI',Arial,sans-serif;min-height:100vh;}
+
+/* ─── LOADING ─── */
+#loading{position:fixed;inset:0;background:#f1f5f9;z-index:999;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;}
+.spin{width:28px;height:28px;border:3px solid #e2e8f0;border-top-color:#2563eb;border-radius:50%;animation:rot .7s linear infinite;}
+@keyframes rot{to{transform:rotate(360deg)}}
+.spin-lbl{font-size:.75rem;color:#64748b;}
+
+/* ─── HEADER ─── */
+header{background:linear-gradient(90deg,#1e3a8a,#1d4ed8,#2563eb);padding:11px 24px;display:flex;align-items:center;gap:12px;box-shadow:0 2px 6px #1d4ed830;}
+.back{display:flex;align-items:center;gap:5px;color:#bfdbfe;font-size:.7rem;font-weight:600;text-decoration:none;padding:3px 9px;border-radius:6px;border:1px solid #ffffff25;background:#ffffff10;transition:background .15s;flex-shrink:0;}
+.back:hover{background:#ffffff20;}
+.hdiv{width:1px;height:20px;background:#ffffff25;}
+.htitles{flex:1;}
+.hplant{font-size:.58rem;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:#93c5fd;}
+.htitle{font-size:.95rem;font-weight:700;color:#fff;}
+.hbadge{background:#ffffff20;border:1px solid #ffffff40;border-radius:6px;padding:3px 10px;font-size:.67rem;color:#fff;white-space:nowrap;}
+
+/* ─── KPI STRIP ─── */
+.kpi-row{background:#fff;border-bottom:2px solid #e2e8f0;display:flex;}
+.kpi{flex:1;padding:12px 16px;text-align:center;border-right:1px solid #f1f5f9;}
+.kpi:last-child{border-right:none;}
+.kv{font-size:1.4rem;font-weight:800;line-height:1;}
+.kl{font-size:.59rem;color:#94a3b8;text-transform:uppercase;letter-spacing:.4px;margin-top:3px;}
+.kv.blue{color:#2563eb;} .kv.green{color:#16a34a;} .kv.red{color:#dc2626;} .kv.amber{color:#d97706;}
+
+/* ─── CONTROLES ─── */
+.ctrl-bar{background:#fff;border-bottom:1px solid #e2e8f0;padding:8px 20px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
+.ctrl-label{font-size:.65rem;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:#94a3b8;}
+.view-tabs{display:flex;gap:4px;}
+.vtab{font-size:.7rem;padding:4px 12px;border-radius:6px;cursor:pointer;border:1px solid #e2e8f0;background:#f8fafc;color:#64748b;transition:all .12s;font-weight:600;}
+.vtab.on{background:#eff6ff;border-color:#93c5fd;color:#1d4ed8;}
+.sel-leader{font-size:.72rem;padding:5px 10px;border:1px solid #e2e8f0;border-radius:6px;outline:none;color:#1e293b;background:#f8fafc;cursor:pointer;}
+.sel-leader:focus{border-color:#93c5fd;}
+.sep{color:#e2e8f0;font-size:.8rem;}
+
+/* ─── VISTAS ─── */
+.view{display:none;padding:18px 20px;}
+.view.on{display:block;}
+
+/* ─── HEATMAP ─── */
+.hm-wrap{overflow:auto;background:#fff;border:1px solid #e2e8f0;border-radius:10px;}
+table.hm{border-collapse:collapse;font-size:.62rem;min-width:100%;}
+table.hm th,table.hm td{border:1px solid #f1f5f9;white-space:nowrap;}
+.hm-row-head{padding:6px 12px;background:#f8fafc;color:#475569;font-weight:600;position:sticky;left:0;z-index:3;min-width:160px;font-size:.65rem;border-right:2px solid #e2e8f0;}
+.hm-col-head{padding:5px 8px;background:#f8fafc;color:#64748b;font-weight:700;text-align:center;position:sticky;top:0;z-index:2;min-width:52px;}
+.hm-col-head .snum{font-size:.7rem;color:#1d4ed8;display:block;}
+.hm-col-head .sdate{font-size:.55rem;color:#94a3b8;font-weight:400;}
+.hm-cell{width:52px;min-width:52px;height:28px;text-align:center;vertical-align:middle;font-weight:700;font-size:.65rem;cursor:default;}
+.hm-cell.si{background:#dcfce7;color:#16a34a;}
+.hm-cell.no{background:#fee2e2;color:#dc2626;cursor:pointer;}
+.hm-cell.no:hover{background:#fecaca;}
+.hm-cell.empty{background:#f8fafc;color:#cbd5e1;}
+.corner{position:sticky;top:0;left:0;z-index:4;background:#f1f5f9;padding:6px 12px;font-size:.58rem;color:#94a3b8;border-right:2px solid #e2e8f0;}
+
+/* ─── CHART ─── */
+.chart-wrap{background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:16px 20px;margin-bottom:14px;}
+.chart-title{font-size:.72rem;font-weight:700;color:#475569;margin-bottom:14px;}
+#bar-canvas{width:100%;height:220px;}
+
+/* ─── VISTA POR LÍDER ─── */
+.leader-header{background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:16px 20px;margin-bottom:14px;display:flex;align-items:center;gap:14px;}
+.lh-avatar{width:42px;height:42px;background:#eff6ff;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:1.2rem;flex-shrink:0;}
+.lh-name{font-size:.92rem;font-weight:700;color:#1e293b;}
+.lh-sub{font-size:.67rem;color:#64748b;margin-top:2px;}
+.lh-pills{display:flex;gap:5px;margin-top:6px;flex-wrap:wrap;}
+.lpill{font-size:.6rem;padding:2px 8px;border-radius:8px;font-weight:600;border:1px solid;}
+.lpill-g{background:#f0fdf4;color:#16a34a;border-color:#bbf7d0;}
+.lpill-r{background:#fef2f2;color:#dc2626;border-color:#fecaca;}
+.lpill-n{background:#f8fafc;color:#94a3b8;border-color:#e2e8f0;}
+
+.sessions-timeline{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:10px;}
+.sess-card{background:#fff;border:1px solid #e2e8f0;border-radius:10px;overflow:hidden;}
+.sess-card.si{border-top:3px solid #22c55e;}
+.sess-card.no{border-top:3px solid #f87171;}
+.sess-card.empty{border-top:3px solid #e2e8f0;}
+.sc-head{padding:10px 12px 8px;display:flex;align-items:center;justify-content:space-between;}
+.sc-snum{font-size:.7rem;font-weight:700;color:#64748b;}
+.sc-badge{font-size:.65rem;font-weight:700;padding:2px 8px;border-radius:6px;}
+.sc-badge.si{background:#f0fdf4;color:#16a34a;}
+.sc-badge.no{background:#fef2f2;color:#dc2626;}
+.sc-badge.empty{background:#f8fafc;color:#94a3b8;}
+.sc-body{padding:0 12px 12px;}
+.sc-date{font-size:.59rem;color:#94a3b8;margin-bottom:5px;}
+.sc-motivo{font-size:.67rem;color:#64748b;line-height:1.4;background:#f8fafc;padding:6px 8px;border-radius:6px;border-left:3px solid #f87171;}
+.sc-motivo.empty-m{border-left-color:#e2e8f0;color:#94a3b8;font-style:italic;}
+
+/* ─── TOOLTIP ─── */
+.tooltip{position:fixed;background:#1e293b;color:#fff;font-size:.68rem;padding:8px 12px;border-radius:8px;pointer-events:none;opacity:0;transition:opacity .12s;z-index:500;max-width:240px;line-height:1.4;}
+.tooltip.show{opacity:1;}
+
+/* ─── EMPTY STATE ─── */
+.empty-state{text-align:center;padding:40px 20px;color:#94a3b8;font-size:.78rem;}
+.empty-state .ei{font-size:2.5rem;margin-bottom:8px;}
+
+@media(max-width:640px){.kpi-row{flex-wrap:wrap;}.kpi{min-width:50%;}.sessions-timeline{grid-template-columns:1fr 1fr;}}
+</style>
+</head>
+<body>
+
+<div id="loading"><div class="spin"></div><div class="spin-lbl">Cargando asistencias…</div></div>
+<div class="tooltip" id="tooltip"></div>
+
+<!-- ── HEADER ── -->
+<header>
+  <a href="../huachipa.html" class="back">← Huachipa</a>
+  <div class="hdiv"></div>
+  <div class="htitles">
+    <div class="hplant">Planta Huachipa</div>
+    <div class="htitle">Seguimiento de Asistencias</div>
+  </div>
+  <div class="hbadge" id="hbadge">S1 – S8</div>
+</header>
+
+<!-- ── KPIs ── -->
+<div class="kpi-row">
+  <div class="kpi"><div class="kv blue" id="k-lideres">—</div><div class="kl">Líderes</div></div>
+  <div class="kpi"><div class="kv green" id="k-asist">—</div><div class="kl">Asistencias</div></div>
+  <div class="kpi"><div class="kv red" id="k-faltas">—</div><div class="kl">Faltas</div></div>
+  <div class="kpi"><div class="kv amber" id="k-pct">—</div><div class="kl">% Asistencia</div></div>
+</div>
+
+<!-- ── CONTROLES ── -->
+<div class="ctrl-bar">
+  <span class="ctrl-label">Vista</span>
+  <div class="view-tabs">
+    <div class="vtab on" onclick="switchView('general',this)">📊 General</div>
+    <div class="vtab" onclick="switchView('lider',this)">👤 Por líder</div>
+  </div>
+  <span class="sep">|</span>
+  <span class="ctrl-label">Líder</span>
+  <select class="sel-leader" id="sel-leader" onchange="onLeaderChange()">
+    <option value="">— Seleccionar —</option>
+  </select>
+</div>
+
+<!-- ── VISTA GENERAL ── -->
+<div class="view on" id="v-general">
+
+  <div class="chart-wrap">
+    <div class="chart-title">Asistencia por sesión — todos los líderes intermedios</div>
+    <canvas id="bar-canvas"></canvas>
+  </div>
+
+  <div class="hm-wrap">
+    <table class="hm" id="hm-table"></table>
+  </div>
+
+</div>
+
+<!-- ── VISTA POR LÍDER ── -->
+<div class="view" id="v-lider">
+  <div id="leader-panel">
+    <div class="empty-state"><div class="ei">👆</div>Selecciona un líder en el filtro superior</div>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
+<script>
+
+// ══════════ CONFIG ══════════
+const CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vSI4G-2KDHTK9i7ZOLNFivP9JttrtKao9A02GEAHxociatw_sb0hUvU-eGH2CjiBQ/pub?gid=1891876114&single=true&output=csv';
+
+// ══════════ GLOBALS ══════════
+let LEADERS = [], SESSIONS = [], DATES = [];
+let currentView = 'general', currentLeader = '';
+
+// ══════════ CSV PARSER (robusto) ══════════
+function nrm(s){return(s||'').trim().toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'');}
+
+function parseCSV(text){
+  if(text&&text.charCodeAt(0)===0xFEFF) text=text.slice(1);
+  const rows=[];let row=[],field='',inQ=false;
+  for(let i=0;i<text.length;i++){
+    const c=text[i];
+    if(inQ){if(c==='"'){if(text[i+1]==='"'){field+='"';i++;}else inQ=false;}else field+=c;}
+    else{
+      if(c==='"')inQ=true;
+      else if(c===','){row.push(field.trim());field='';}
+      else if(c==='\n'){row.push(field.trim());rows.push(row);row=[];field='';}
+      else if(c!=='\r')field+=c;
+    }
+  }
+  if(row.length||field.trim())rows.push([...row,field.trim()]);
+  return rows;
+}
+
+function normalizeAtt(v){
+  const n=nrm(v);
+  if(n==='si'||n==='s'||n==='yes'||n==='y'||n==='1')return'SI';
+  if(n==='no'||n==='n'||n==='0')return'NO';
+  return '';
+}
+
+// ══════════ BUILD DATA ══════════
+function buildFromCSV(rows){
+  // ── 1. Localizar fila de headers ──
+  let headerIdx=-1, headers=[];
+  for(let i=0;i<Math.min(rows.length,5);i++){
+    const norm=rows[i].map(c=>nrm(c));
+    if(norm.some(c=>c.includes('colaborador'))){
+      headerIdx=i; headers=norm; break;
+    }
+  }
+  if(headerIdx<0){console.warn('Headers no encontrados');return[];}
+
+  // ── 2. Detectar columnas base ──
+  const fi=(terms)=>headers.findIndex(h=>terms.some(t=>h.includes(nrm(t))));
+  const colPlanta    = fi(['planta']);
+  const colNombre    = fi(['colaborador']);
+
+  // ── 3. Detectar TODAS las sesiones dinámicamente ──
+  // Busca headers con patrón: "asistencia s1", "asistencia s 1", "asiste s1", etc.
+  SESSIONS = [];
+  headers.forEach((h,i)=>{
+    const m = h.match(/asist\w*[\s\-]?s\s*(\d+)/);
+    if(m){
+      SESSIONS.push({
+        num:      parseInt(m[1]),
+        label:    'S'+m[1],
+        attIdx:   i,
+        motiIdx:  i+1,   // columna siguiente = Motivos y causas
+        tiempoIdx:i+2    // columna siguiente = Tiempo evidenciado
+      });
+    }
+  });
+  SESSIONS.sort((a,b)=>a.num-b.num);
+  console.log('Sesiones detectadas:', SESSIONS.map(s=>s.label+'@'+s.attIdx));
+
+  // ── 4. Extraer fechas de la fila anterior (rango de fecha) ──
+  const dateRow = headerIdx>0 ? rows[headerIdx-1] : [];
+  DATES = SESSIONS.map(s => (dateRow[s.attIdx]||'').trim());
+
+  // ── 5. Filas de datos: solo HUACHIPA ──
+  const data = rows.slice(headerIdx+1).filter(r=>{
+    if(!r||r.length<3) return false;
+    const nombre = (r[colNombre]||'').trim();
+    const planta = nrm(r[colPlanta]||'');
+    return nombre && planta.includes('huachipa');
+  });
+
+  // ── 6. Construir objetos líder ──
+  return data.map(r=>({
+    name:  (r[colNombre]||'').trim(),
+    short: makeShort((r[colNombre]||'').trim()),
+    sessions: SESSIONS.map(s=>({
+      label:  s.label,
+      att:    normalizeAtt(r[s.attIdx]||''),
+      motivo: (r[s.motiIdx]||'').trim(),
+      tiempo: (r[s.tiempoIdx]||'').trim()
+    }))
+  }));
+}
+
+function makeShort(full){
+  const p=full.split(/\s+/);
+  if(p.length>=3)return p[0]+' '+p[p.length-1];
+  return p[0]||full;
+}
+
+// ══════════ KPIs ══════════
+function renderKPIs(){
+  const total = LEADERS.length;
+  let asist=0,faltas=0,total_reg=0;
+  LEADERS.forEach(l=>l.sessions.forEach(s=>{
+    if(s.att==='SI'){asist++;total_reg++;}
+    else if(s.att==='NO'){faltas++;total_reg++;}
+  }));
+  const pct = total_reg>0 ? Math.round(asist/total_reg*100) : 0;
+  document.getElementById('k-lideres').textContent = total;
+  document.getElementById('k-asist').textContent   = asist;
+  document.getElementById('k-faltas').textContent  = faltas;
+  document.getElementById('k-pct').textContent     = pct+'%';
+  document.getElementById('hbadge').textContent    = total+' líderes · S1–S'+(SESSIONS.filter((_,i)=>LEADERS.some(l=>l.sessions[i].att!=='')).reduce((m,_,i)=>i+1,0)||8);
+}
+
+// ══════════ HEATMAP ══════════
+function renderHeatmap(){
+  const tbl = document.getElementById('hm-table');
+  tbl.innerHTML='';
+  const thead=tbl.createTHead(), hr=thead.insertRow();
+
+  // Esquina
+  const corner=document.createElement('th');
+  corner.className='corner';corner.textContent='Líder ↓ / Sesión →';
+  hr.appendChild(corner);
+
+  // Cabeceras de sesión
+  SESSIONS.forEach((s,i)=>{
+    const th=document.createElement('th');th.className='hm-col-head';
+    th.innerHTML=`<span class="snum">${s.label}</span><span class="sdate">${DATES[i]||''}</span>`;
+    hr.appendChild(th);
+  });
+
+  const tbody=tbl.createTBody();
+  LEADERS.forEach(l=>{
+    const tr=tbody.insertRow();
+    const th=document.createElement('th');th.className='hm-row-head';th.textContent=l.short;th.title=l.name;
+    tr.appendChild(th);
+    l.sessions.forEach(s=>{
+      const td=tr.insertCell();
+      const cls = s.att==='SI'?'si':s.att==='NO'?'no':'empty';
+      td.className='hm-cell '+cls;
+      td.textContent = s.att==='SI'?'✓':s.att==='NO'?'✗':'—';
+      if(s.att==='NO'&&s.motivo){
+        td.addEventListener('mouseenter',e=>showTip(e,`<b>${l.short} · ${s.label}</b><br>${s.motivo}`));
+        td.addEventListener('mousemove',moveTip);
+        td.addEventListener('mouseleave',hideTip);
+      }
+    });
+  });
+}
+
+// ══════════ GRÁFICO DE BARRAS (D3) ══════════
+function renderChart(){
+  const canvas=document.getElementById('bar-canvas');
+  const parent=canvas.parentElement;
+  const W=parent.clientWidth-40, H=220;
+
+  d3.select('#bar-canvas').remove();
+  const svg=d3.select(parent).append('svg').attr('id','bar-canvas')
+    .attr('width',W).attr('height',H).style('display','block');
+
+  const data=SESSIONS.map((s,i)=>{
+    let si=0,no=0;
+    LEADERS.forEach(l=>{
+      if(l.sessions[i].att==='SI')si++;
+      else if(l.sessions[i].att==='NO')no++;
+    });
+    const total=si+no;
+    return{label:s.label,si,no,pct:total>0?Math.round(si/total*100):null,date:DATES[i]||''};
+  });
+
+  const margin={top:20,right:10,bottom:36,left:36};
+  const iW=W-margin.left-margin.right, iH=H-margin.top-margin.bottom;
+  const g=svg.append('g').attr('transform',`translate(${margin.left},${margin.top})`);
+
+  const x=d3.scaleBand().domain(data.map(d=>d.label)).range([0,iW]).padding(.28);
+  const maxVal=LEADERS.length||1;
+  const y=d3.scaleLinear().domain([0,maxVal]).nice().range([iH,0]);
+
+  // Ejes
+  g.append('g').attr('transform',`translate(0,${iH})`).call(d3.axisBottom(x).tickSize(0))
+    .call(a=>{a.select('.domain').remove();a.selectAll('text').style('font-size','10px').style('fill','#64748b');});
+  g.append('g').call(d3.axisLeft(y).ticks(4).tickSize(-iW))
+    .call(a=>{a.select('.domain').remove();
+      a.selectAll('.tick line').style('stroke','#f1f5f9');
+      a.selectAll('text').style('font-size','9px').style('fill','#94a3b8');});
+
+  // Barras SI (verde)
+  g.selectAll('.bar-si').data(data).join('rect').attr('class','bar-si')
+    .attr('x',d=>x(d.label)).attr('width',x.bandwidth())
+    .attr('y',d=>y(d.si)).attr('height',d=>iH-y(d.si))
+    .attr('rx',3).attr('fill','#4ade80').attr('fill-opacity',.8);
+
+  // Barras NO (rojo) — apiladas
+  g.selectAll('.bar-no').data(data).join('rect').attr('class','bar-no')
+    .attr('x',d=>x(d.label)).attr('width',x.bandwidth())
+    .attr('y',d=>y(d.si+d.no)).attr('height',d=>iH-y(d.no))
+    .attr('rx',3).attr('fill','#f87171').attr('fill-opacity',.7);
+
+  // Etiqueta % encima
+  g.selectAll('.pct-lbl').data(data).join('text').attr('class','pct-lbl')
+    .attr('x',d=>x(d.label)+x.bandwidth()/2).attr('y',d=>y(d.si+d.no)-5)
+    .attr('text-anchor','middle').style('font-size','9px').style('font-weight','700').style('fill','#475569')
+    .text(d=>d.pct!==null?d.pct+'%':'');
+
+  // Leyenda simple
+  const leg=svg.append('g').attr('transform',`translate(${W-90},8)`);
+  [[' Asistió','#4ade80'],[' Faltó','#f87171']].forEach(([lbl,col],i)=>{
+    leg.append('rect').attr('x',i*52).attr('y',0).attr('width',10).attr('height',10).attr('rx',2).attr('fill',col).attr('fill-opacity',.8);
+    leg.append('text').attr('x',i*52+13).attr('y',9).style('font-size','9px').style('fill','#64748b').text(lbl);
+  });
+}
+
+// ══════════ VISTA POR LÍDER ══════════
+function renderLeaderView(leaderName){
+  const panel=document.getElementById('leader-panel');
+  if(!leaderName){
+    panel.innerHTML='<div class="empty-state"><div class="ei">👆</div>Selecciona un líder en el filtro superior</div>';
+    return;
+  }
+  const l=LEADERS.find(x=>x.name===leaderName);
+  if(!l){panel.innerHTML='<div class="empty-state">Líder no encontrado</div>';return;}
+
+  const si=l.sessions.filter(s=>s.att==='SI').length;
+  const no=l.sessions.filter(s=>s.att==='NO').length;
+  const reg=si+no;
+  const pct=reg>0?Math.round(si/reg*100):null;
+
+  let html=`
+  <div class="leader-header">
+    <div class="lh-avatar">👤</div>
+    <div>
+      <div class="lh-name">${l.name}</div>
+      <div class="lh-sub">Líder Intermedio · Huachipa</div>
+      <div class="lh-pills">
+        <span class="lpill lpill-g">✓ ${si} asistencias</span>
+        <span class="lpill lpill-r">✗ ${no} faltas</span>
+        ${pct!==null?`<span class="lpill lpill-n">${pct}% cumplimiento</span>`:''}
+      </div>
+    </div>
+  </div>
+  <div class="sessions-timeline">`;
+
+  l.sessions.forEach((s,i)=>{
+    const cls=s.att==='SI'?'si':s.att==='NO'?'no':'empty';
+    const badgeTxt=s.att==='SI'?'✓ Asistió':s.att==='NO'?'✗ Faltó':'Sin registro';
+    const motiHtml=s.att==='NO'
+      ? `<div class="sc-motivo">${s.motivo||'Sin motivo registrado'}</div>`
+      : s.att==='SI'
+        ? `<div class="sc-motivo empty-m">Sin observaciones</div>`
+        : `<div class="sc-motivo empty-m">Sin datos aún</div>`;
+    html+=`
+    <div class="sess-card ${cls}">
+      <div class="sc-head">
+        <span class="sc-snum">Sesión ${s.label}</span>
+        <span class="sc-badge ${cls}">${badgeTxt}</span>
+      </div>
+      <div class="sc-body">
+        ${DATES[i]?`<div class="sc-date">📅 ${DATES[i]}</div>`:''}
+        ${motiHtml}
+        ${s.tiempo?`<div style="font-size:.59rem;color:#94a3b8;margin-top:4px">⏱ ${s.tiempo} hrs</div>`:''}
+      </div>
+    </div>`;
+  });
+  html+='</div>';
+  panel.innerHTML=html;
+}
+
+// ══════════ SELECT DE LÍDERES ══════════
+function populateSelect(){
+  const sel=document.getElementById('sel-leader');
+  LEADERS.forEach(l=>{
+    const opt=document.createElement('option');
+    opt.value=l.name;opt.textContent=l.short;
+    sel.appendChild(opt);
+  });
+}
+function onLeaderChange(){
+  currentLeader=document.getElementById('sel-leader').value;
+  if(currentView==='lider') renderLeaderView(currentLeader);
+}
+
+// ══════════ SWITCH VIEW ══════════
+function switchView(id,el){
+  currentView=id;
+  document.querySelectorAll('.vtab').forEach(t=>t.classList.remove('on'));
+  el.classList.add('on');
+  document.querySelectorAll('.view').forEach(v=>v.classList.remove('on'));
+  document.getElementById('v-'+id).classList.add('on');
+  if(id==='lider') renderLeaderView(currentLeader);
+  if(id==='general') setTimeout(renderChart,50);
+}
+
+// ══════════ TOOLTIP ══════════
+const tip=document.getElementById('tooltip');
+function showTip(e,html){tip.innerHTML=html;tip.classList.add('show');moveTip(e);}
+function moveTip(e){tip.style.left=(e.clientX+12)+'px';tip.style.top=(e.clientY-10)+'px';}
+function hideTip(){tip.classList.remove('show');}
+
+// ══════════ INIT ══════════
+async function init(){
+  try{
+    const res=await fetch(CSV_URL,{cache:'no-cache'});
+    const text=await res.text();
+    if(!text||text.length<100) throw new Error('Respuesta vacía');
+    const rows=parseCSV(text);
+    LEADERS=buildFromCSV(rows);
+    if(!LEADERS.length) throw new Error('Sin datos de líderes');
+  }catch(e){
+    document.getElementById('loading').innerHTML=`
+      <div style="text-align:center;color:#dc2626;font-size:.85rem;padding:20px">
+        <div style="font-size:2rem;margin-bottom:8px">⚠</div>
+        <b>${e.message}</b><br>
+        <span style="color:#64748b;font-size:.72rem">Verifica que la URL CSV esté configurada correctamente</span><br><br>
+        <button onclick="location.reload()" style="padding:5px 14px;background:#2563eb;color:#fff;border:none;border-radius:6px;cursor:pointer">Reintentar</button>
+      </div>`;
+    return;
+  }
+
+  renderKPIs();
+  populateSelect();
+  renderHeatmap();
+  renderChart();
+  document.getElementById('loading').style.display='none';
+}
+
+window.addEventListener('load',init);
+</script>
+</body>
+</html>
