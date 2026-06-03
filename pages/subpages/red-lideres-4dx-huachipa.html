@@ -132,6 +132,7 @@ table.mx .mc{width:22px;min-width:22px;max-width:22px;height:22px;text-align:cen
     <p>Intermedios — Seguimiento de Sesiones · Jun 2026</p>
   </div>
   <div class="hbadge" id="hbadge">Huachipa · cargando…</div>
+  <span id="last-update" style="font-size:.55rem;color:#93c5fd;white-space:nowrap;"></span>
 </header>
 
 <div class="dash-type">
@@ -387,6 +388,36 @@ async function init() {
 
   document.getElementById('loading-overlay').style.display = 'none';
   showDataBanner(source, debugMsg);
+
+  // Marcar hora de carga
+  (()=>{ const el=document.getElementById('last-update'); if(el) el.textContent='⟳ '+new Date().toLocaleTimeString('es-PE',{hour:'2-digit',minute:'2-digit',second:'2-digit'}); })();
+
+  // Auto-refresh cada 30 segundos
+  setInterval(async ()=>{
+    try{
+      const r2  = await fetch(FETCH_URL,{cache:'no-cache'});
+      const tx2 = await r2.text();
+      if(!tx2||tx2.length<200) return;
+      const built = buildLeadersFromCSV(parseCSV(tx2));
+      if(JSON.stringify(built)===JSON.stringify(LEADERS)) return;
+      LEADERS = built;
+      ACTIVE_LEADERS = LEADERS.filter(l=>!l.empty&&l.members.length>0);
+      memberCount={};
+      ACTIVE_LEADERS.forEach(l=>l.members.forEach(m=>{
+        const k=m.replace(/\*/g,'').trim();
+        memberCount[k]=(memberCount[k]||0)+1;
+      }));
+      document.getElementById('hbadge').textContent=
+        `Huachipa · ${ACTIVE_LEADERS.length} líderes con equipo`;
+      // Re-render vista activa
+      const activeId = document.querySelector('.view.active')?.id?.replace('v-','');
+      if(activeId==='cards'||!activeId) renderCards();
+      if(activeId==='net'){ window._netBuilt=false; buildNetwork(); window._netBuilt=true; }
+      if(activeId==='matrix'){ window._matBuilt=false; buildMatrix(); window._matBuilt=true; }
+      const el=document.getElementById('last-update');
+      if(el) el.textContent='⟳ '+new Date().toLocaleTimeString('es-PE',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
+    }catch(e){}
+  },30000);
 }
 
 // ════════════ TABS ════════════
