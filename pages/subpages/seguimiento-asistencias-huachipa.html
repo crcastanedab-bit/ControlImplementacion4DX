@@ -137,6 +137,7 @@ table.hm th,table.hm td{border:1px solid #f1f5f9;white-space:nowrap;}
     <div class="htitle">Seguimiento de Asistencias</div>
   </div>
   <div class="hbadge" id="hbadge">S1 – S8</div>
+  <span id="last-update" style="font-size:.55rem;color:#93c5fd;white-space:nowrap;"></span>
 </header>
 
 <!-- ── KPIs ── -->
@@ -660,6 +661,24 @@ async function init(){
   renderHeatmap();
   renderChart();
   document.getElementById('loading').style.display='none';
+  (()=>{ const el=document.getElementById('last-update'); if(el) el.textContent='⟳ '+new Date().toLocaleTimeString('es-PE',{hour:'2-digit',minute:'2-digit',second:'2-digit'}); })();
+
+  // Auto-refresh cada 30 segundos
+  setInterval(async ()=>{
+    try{
+      const r2  = await fetch(CSV_URL,{cache:'no-cache'});
+      const tx2 = await r2.text();
+      const nv  = buildFromCSV(parseCSV(tx2));
+      if(JSON.stringify(nv)!==JSON.stringify(LEADERS)){
+        LEADERS=nv;
+        renderKPIs();
+        if(currentView==='general'){ renderHeatmap(); setTimeout(renderChart,50); }
+        else renderLeaderView(currentLeader);
+      }
+      const el=document.getElementById('last-update');
+      if(el) el.textContent='⟳ '+new Date().toLocaleTimeString('es-PE',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
+    }catch(e){}
+  },30000);
 
   // Responsividad: re-renderiza el gráfico al cambiar el tamaño del contenedor
   if(window.ResizeObserver){
