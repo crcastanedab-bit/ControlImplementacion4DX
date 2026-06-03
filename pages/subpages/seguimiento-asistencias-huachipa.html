@@ -68,7 +68,12 @@ table.hm th,table.hm td{border:1px solid #f1f5f9;white-space:nowrap;}
 .hm-cell.no{background:#fee2e2;color:#dc2626;cursor:pointer;}
 .hm-cell.no:hover{background:#fecaca;}
 .hm-cell.empty{background:#f8fafc;color:#cbd5e1;}
+.hm-cell.dim,.hm-col-head.dim{opacity:.25;pointer-events:none;}
 .corner{position:sticky;top:0;left:0;z-index:4;background:#f1f5f9;padding:6px 12px;font-size:.58rem;color:#94a3b8;border-right:2px solid #e2e8f0;}
+/* ─── CHIPS DE SESIÓN ─── */
+.sess-chip{font-size:.63rem;padding:3px 9px;border-radius:6px;cursor:pointer;border:1px solid #e2e8f0;background:#f8fafc;color:#64748b;font-weight:700;transition:all .12s;}
+.sess-chip:hover{border-color:#93c5fd;color:#1d4ed8;}
+.sess-chip.on{background:#1d4ed8;border-color:#1d4ed8;color:#fff;}
 
 /* ─── CHART ─── */
 .chart-wrap{background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:16px 20px;margin-bottom:14px;}
@@ -152,6 +157,9 @@ table.hm th,table.hm td{border:1px solid #f1f5f9;white-space:nowrap;}
     <div class="vtab" onclick="switchNivel('nuevo',this)">Nuevos</div>
   </div>
   <span class="sep">|</span>
+  <span class="ctrl-label">Sesión</span>
+  <div style="display:flex;gap:4px;flex-wrap:wrap;" id="sess-chips"></div>
+  <span class="sep">|</span>
   <span class="ctrl-label">Líder</span>
   <select class="sel-leader" id="sel-leader" onchange="onLeaderChange()">
     <option value="">— Seleccionar —</option>
@@ -188,6 +196,7 @@ const CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vSI4G-2KDHTK9i7
 // ══════════ GLOBALS ══════════
 let LEADERS = [], SESSIONS = [], DATES = [];
 let currentView = 'general', currentLeader = '', currentNivel = 'todos';
+let currentSessions = new Set(); // vacío = todas las sesiones
 
 // ══════════ CSV PARSER (robusto) ══════════
 function nrm(s){return(s||'').trim().toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'');}
@@ -306,6 +315,11 @@ function filteredLeaders(){
   });
 }
 
+function filteredSessions(){
+  if(currentSessions.size===0) return SESSIONS;
+  return SESSIONS.filter(s=>currentSessions.has(s.label));
+}
+
 function nivelBadgeHtml(nivel){
   if(!nivel) return '';
   const n=nrm(nivel);
@@ -316,19 +330,24 @@ function nivelBadgeHtml(nivel){
 // ══════════ KPIs ══════════
 function renderKPIs(){
   const fl = filteredLeaders();
+  const fs = filteredSessions();
+  const fsLabels = new Set(fs.map(s=>s.label));
   const total = fl.length;
   let asist=0,faltas=0,total_reg=0;
-  fl.forEach(l=>l.sessions.forEach(s=>{
+  fl.forEach(l=>l.sessions.forEach((s,i)=>{
+    if(!fsLabels.has(SESSIONS[i].label)) return;
     if(s.att==='SI'){asist++;total_reg++;}
     else if(s.att==='NO'){faltas++;total_reg++;}
   }));
   const pct = total_reg>0 ? Math.round(asist/total_reg*100) : 0;
   const nivelLbl = currentNivel==='todos'?'líderes':currentNivel==='intermedio'?'intermedios':'nuevos';
+  const sessLbl = currentSessions.size===0 ? 'S1–S'+(SESSIONS.length||8)
+    : [...currentSessions].sort().join(' + ');
   document.getElementById('k-lideres').textContent = total;
   document.getElementById('k-asist').textContent   = asist;
   document.getElementById('k-faltas').textContent  = faltas;
   document.getElementById('k-pct').textContent     = pct+'%';
-  document.getElementById('hbadge').textContent    = total+' '+nivelLbl+' · S1–S'+(SESSIONS.length||8);
+  document.getElementById('hbadge').textContent    = total+' '+nivelLbl+' · '+sessLbl;
 }
 
 // ══════════ HEATMAP ══════════
@@ -343,8 +362,11 @@ function renderHeatmap(){
   hr.appendChild(corner);
 
   // Cabeceras de sesión — muestra fecha de Intermedios y Nuevos sobre el número
+  const activeLabels = new Set(filteredSessions().map(s=>s.label));
   SESSIONS.forEach((s)=>{
-    const th=document.createElement('th');th.className='hm-col-head';
+    const th=document.createElement('th');
+    const isDim = currentSessions.size>0 && !activeLabels.has(s.label);
+    th.className='hm-col-head'+(isDim?' dim':'');
     const intLine = s.dateInt
       ? `<div class="sh-date sh-date-int"><span class="sh-tag">INT</span>${s.dateInt}</div>` : '';
     const nvoLine = s.dateNvo
@@ -360,10 +382,11 @@ function renderHeatmap(){
     const th=document.createElement('th');th.className='hm-row-head';
     th.innerHTML=l.short+nivelBadgeHtml(l.nivel);th.title=l.name;
     tr.appendChild(th);
-    l.sessions.forEach(s=>{
+    l.sessions.forEach((s,i)=>{
       const td=tr.insertCell();
+      const isDimCell = currentSessions.size>0 && !activeLabels.has(SESSIONS[i].label);
       const cls = s.att==='SI'?'si':s.att==='NO'?'no':'empty';
-      td.className='hm-cell '+cls;
+      td.className='hm-cell '+cls+(isDimCell?' dim':'');
       td.textContent = s.att==='SI'?'✓':s.att==='NO'?'✗':'—';
       if(s.att==='NO'&&s.motivo){
         td.addEventListener('mouseenter',e=>showTip(e,`<b>${l.short} · ${s.label}</b><br>${s.motivo}`));
@@ -374,20 +397,21 @@ function renderHeatmap(){
   });
 }
 
-// ══════════ GRÁFICO DE BARRAS (D3) ══════════
+// ══════════ GRÁFICO DE BARRAS (D3) — mejorado ══════════
 function renderChart(){
-  const canvas=document.getElementById('bar-canvas');
-  const parent=canvas.parentElement;
-  const W=parent.clientWidth-40, H=220;
-
-  d3.select('#bar-canvas').remove();
-  const svg=d3.select(parent).append('svg').attr('id','bar-canvas')
-    .attr('width',W).attr('height',H).style('display','block');
-
   const fl=filteredLeaders();
+  const fs=filteredSessions();
+  const activeLabels=new Set(fs.map(s=>s.label));
+
   const nivelTitle={'todos':'todos los líderes','intermedio':'líderes intermedios','nuevo':'líderes nuevos'};
   const chartTitleEl=document.getElementById('chart-title');
   if(chartTitleEl) chartTitleEl.textContent='Asistencia por sesión — '+nivelTitle[currentNivel];
+
+  const chartWrap=document.querySelector('.chart-wrap');
+  d3.select('#bar-canvas').remove();
+  const W=chartWrap.clientWidth-40, H=240;
+  const svg=d3.select(chartWrap).append('svg').attr('id','bar-canvas')
+    .attr('width',W).attr('height',H).style('display','block');
 
   const data=SESSIONS.map((s,i)=>{
     let si=0,no=0;
@@ -396,48 +420,74 @@ function renderChart(){
       else if(l.sessions[i].att==='NO')no++;
     });
     const total=si+no;
-    return{label:s.label,si,no,pct:total>0?Math.round(si/total*100):null,date:DATES[i]||''};
+    return{label:s.label,si,no,pct:total>0?Math.round(si/total*100):null,active:activeLabels.has(s.label)};
   });
 
-  const margin={top:20,right:10,bottom:36,left:36};
+  const margin={top:28,right:32,bottom:32,left:34};
   const iW=W-margin.left-margin.right, iH=H-margin.top-margin.bottom;
   const g=svg.append('g').attr('transform',`translate(${margin.left},${margin.top})`);
 
-  const x=d3.scaleBand().domain(data.map(d=>d.label)).range([0,iW]).padding(.28);
+  const x=d3.scaleBand().domain(data.map(d=>d.label)).range([0,iW]).padding(.32);
   const maxVal=fl.length||1;
   const y=d3.scaleLinear().domain([0,maxVal]).nice().range([iH,0]);
 
-  // Ejes
-  g.append('g').attr('transform',`translate(0,${iH})`).call(d3.axisBottom(x).tickSize(0))
-    .call(a=>{a.select('.domain').remove();a.selectAll('text').style('font-size','10px').style('fill','#64748b');});
+  // Grid
   g.append('g').call(d3.axisLeft(y).ticks(4).tickSize(-iW))
     .call(a=>{a.select('.domain').remove();
-      a.selectAll('.tick line').style('stroke','#f1f5f9');
+      a.selectAll('.tick line').style('stroke','#f1f5f9').style('stroke-dasharray','3,3');
       a.selectAll('text').style('font-size','9px').style('fill','#94a3b8');});
 
-  // Barras SI (verde)
+  // Línea 80%
+  if(fl.length>0){
+    const ref80y=y(Math.round(fl.length*0.8));
+    g.append('line').attr('x1',0).attr('x2',iW).attr('y1',ref80y).attr('y2',ref80y)
+      .style('stroke','#f59e0b').style('stroke-width',1.5).style('stroke-dasharray','5,3');
+    g.append('text').attr('x',iW+3).attr('y',ref80y+3)
+      .style('font-size','8px').style('fill','#d97706').style('font-weight','700').text('80%');
+  }
+
+  // Eje X — etiqueta azul si sesión activa
+  g.append('g').attr('transform',`translate(0,${iH})`).call(d3.axisBottom(x).tickSize(0))
+    .call(a=>{a.select('.domain').remove();
+      a.selectAll('text').style('font-size','10px').style('font-weight','700')
+        .style('fill',(_,i)=>data[i]&&data[i].active?'#1d4ed8':'#cbd5e1');});
+
+  // Barra SI (verde, base)
   g.selectAll('.bar-si').data(data).join('rect').attr('class','bar-si')
     .attr('x',d=>x(d.label)).attr('width',x.bandwidth())
-    .attr('y',d=>y(d.si)).attr('height',d=>iH-y(d.si))
-    .attr('rx',3).attr('fill','#4ade80').attr('fill-opacity',.8);
+    .attr('y',d=>y(d.si)).attr('height',d=>Math.max(0,iH-y(d.si)))
+    .attr('rx',4).attr('fill','#4ade80').attr('fill-opacity',d=>d.active?0.9:0.25);
 
-  // Barras NO (rojo) — apiladas
+  // Barra NO (rojo, encima) — ALTURA CORREGIDA: y(si) - y(si+no)
   g.selectAll('.bar-no').data(data).join('rect').attr('class','bar-no')
     .attr('x',d=>x(d.label)).attr('width',x.bandwidth())
-    .attr('y',d=>y(d.si+d.no)).attr('height',d=>iH-y(d.no))
-    .attr('rx',3).attr('fill','#f87171').attr('fill-opacity',.7);
+    .attr('y',d=>y(d.si+d.no)).attr('height',d=>Math.max(0,y(d.si)-y(d.si+d.no)))
+    .attr('rx',4).attr('fill','#f87171').attr('fill-opacity',d=>d.active?0.85:0.2);
 
-  // Etiqueta % encima
+  // Número dentro barra SI (si hay espacio)
+  g.selectAll('.cnt-si').data(data).join('text').attr('class','cnt-si')
+    .attr('x',d=>x(d.label)+x.bandwidth()/2).attr('y',d=>(y(d.si)+iH)/2+4)
+    .attr('text-anchor','middle').style('font-size','10px').style('font-weight','800').style('fill','#166534')
+    .style('opacity',d=>iH-y(d.si)>18&&d.si>0?1:0).text(d=>d.si||'');
+
+  // Número dentro barra NO (si hay espacio)
+  g.selectAll('.cnt-no').data(data).join('text').attr('class','cnt-no')
+    .attr('x',d=>x(d.label)+x.bandwidth()/2).attr('y',d=>(y(d.si+d.no)+y(d.si))/2+4)
+    .attr('text-anchor','middle').style('font-size','10px').style('font-weight','800').style('fill','#991b1b')
+    .style('opacity',d=>y(d.si)-y(d.si+d.no)>18&&d.no>0?1:0).text(d=>d.no||'');
+
+  // % encima — color según rendimiento
   g.selectAll('.pct-lbl').data(data).join('text').attr('class','pct-lbl')
-    .attr('x',d=>x(d.label)+x.bandwidth()/2).attr('y',d=>y(d.si+d.no)-5)
-    .attr('text-anchor','middle').style('font-size','9px').style('font-weight','700').style('fill','#475569')
-    .text(d=>d.pct!==null?d.pct+'%':'');
+    .attr('x',d=>x(d.label)+x.bandwidth()/2).attr('y',d=>d.pct!==null?y(d.si+d.no)-7:0)
+    .attr('text-anchor','middle').style('font-size','10px').style('font-weight','800')
+    .style('fill',d=>d.pct===null?'none':d.pct>=80?'#16a34a':d.pct>=60?'#d97706':'#dc2626')
+    .style('opacity',d=>d.active?1:0.3).text(d=>d.pct!==null?d.pct+'%':'');
 
-  // Leyenda simple
-  const leg=svg.append('g').attr('transform',`translate(${W-90},8)`);
-  [[' Asistió','#4ade80'],[' Faltó','#f87171']].forEach(([lbl,col],i)=>{
-    leg.append('rect').attr('x',i*52).attr('y',0).attr('width',10).attr('height',10).attr('rx',2).attr('fill',col).attr('fill-opacity',.8);
-    leg.append('text').attr('x',i*52+13).attr('y',9).style('font-size','9px').style('fill','#64748b').text(lbl);
+  // Leyenda arriba izquierda
+  const leg=svg.append('g').attr('transform',`translate(${margin.left},8)`);
+  [['✓ Asistió','#4ade80','#166534'],['✗ Faltó','#f87171','#991b1b']].forEach(([lbl,fill,tc],i)=>{
+    leg.append('rect').attr('x',i*80).attr('y',0).attr('width',12).attr('height',12).attr('rx',3).attr('fill',fill).attr('fill-opacity',.9);
+    leg.append('text').attr('x',i*80+16).attr('y',9.5).style('font-size','9.5px').style('fill',tc).style('font-weight','600').text(lbl);
   });
 }
 
@@ -515,6 +565,31 @@ function onLeaderChange(){
   if(currentView==='lider') renderLeaderView(currentLeader);
 }
 
+// ══════════ CHIPS DE SESIÓN ══════════
+function populateSessions(){
+  const wrap=document.getElementById('sess-chips');
+  wrap.innerHTML='';
+  SESSIONS.forEach(s=>{
+    const chip=document.createElement('div');
+    chip.className='sess-chip';
+    chip.textContent=s.label;
+    chip.onclick=()=>switchSession(s.label,chip);
+    wrap.appendChild(chip);
+  });
+}
+function switchSession(label,el){
+  if(currentSessions.has(label)){
+    currentSessions.delete(label);
+    el.classList.remove('on');
+  }else{
+    currentSessions.add(label);
+    el.classList.add('on');
+  }
+  renderKPIs();
+  renderHeatmap();
+  if(currentView==='general') setTimeout(renderChart,50);
+}
+
 // ══════════ SWITCH NIVEL ══════════
 function switchNivel(nivel,el){
   currentNivel=nivel;
@@ -564,6 +639,7 @@ async function init(){
     return;
   }
 
+  populateSessions();
   renderKPIs();
   populateSelect();
   renderHeatmap();
