@@ -213,7 +213,10 @@ footer{margin-top:36px;padding:20px;text-align:center;font-size:.62rem;color:#94
 <script>
 // ─── CONFIG ───────────────────────────────────────────────────────────────────
 const CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vSI4G-2KDHTK9i7ZOLNFivP9JttrtKao9A02GEAHxociatw_sb0hUvU-eGH2CjiBQ/pub?gid=1891876114&single=true&output=csv';
-const META = 9.6; // horas objetivo por quincena
+// META progresiva por quincena (2 semanas cada una)
+// h/sem ref:  3.3  4.9   6.2   7.2   7.7   8.4   9.1   9.6
+const META_Q = [6.6, 9.8, 12.4, 14.4, 15.4, 16.8, 18.2, 19.2];
+function getMetaQ(qNum){ return META_Q[(qNum||1)-1] ?? META_Q[META_Q.length-1]; }
 const Q_SESSIONS = ['S1 → S2','S3 → S4','S5 → S6','S7 → S8','S9 → S10','S11 → S12'];
 
 // ─── STATE ────────────────────────────────────────────────────────────────────
@@ -254,8 +257,18 @@ function findCol(headers, ...terms){
 }
 
 function makeShort(name){
-  const p=name.trim().split(/\s+/);
-  return p.length>=2 ? p[0]+' '+p[p.length-1] : name;
+  // Primer nombre + primer apellido
+  const p=(name||'').trim().split(/\s+/);
+  if(p.length<=2) return (name||'').trim();
+  if(p.length===3) return p[0]+' '+p[1];
+  return p[0]+' '+p[p.length-2];
+}
+function makeAbbrev(name){
+  // Primer nombre + inicial primer apellido (espacios reducidos)
+  const p=(name||'').trim().split(/\s+/);
+  if(p.length<=1) return (name||'').trim();
+  const sur=p.length===2?p[1]:p.length===3?p[1]:p[p.length-2];
+  return p[0]+' '+sur[0]+'.';
 }
 
 function parseHours(raw){
@@ -266,18 +279,20 @@ function parseHours(raw){
 }
 
 // ─── COLORS ───────────────────────────────────────────────────────────────────
-function perfColor(h){
+function perfColor(h, meta){
+  const m = meta ?? getMetaQ(1);
   if(h===null||h===undefined) return '#94a3b8';
-  if(h>=META)       return '#16a34a';
-  if(h>=META*0.8)   return '#d97706';
-  if(h>=META*0.5)   return '#ea580c';
+  if(h>=m)       return '#16a34a';
+  if(h>=m*0.8)   return '#d97706';
+  if(h>=m*0.5)   return '#ea580c';
   return '#dc2626';
 }
-function perfBg(h){
+function perfBg(h, meta){
+  const m = meta ?? getMetaQ(1);
   if(h===null||h===undefined) return '#f8fafc';
-  if(h>=META)       return '#dcfce7';
-  if(h>=META*0.8)   return '#fef3c7';
-  if(h>=META*0.5)   return '#ffedd5';
+  if(h>=m)       return '#dcfce7';
+  if(h>=m*0.8)   return '#fef3c7';
+  if(h>=m*0.5)   return '#ffedd5';
   return '#fee2e2';
 }
 function nivelBadge(nivel){
@@ -314,7 +329,8 @@ function buildFromCSV(rows){
     label:    'Q'+q,
     sessions: Q_SESSIONS[+q-1] || '',
     colIdx:   qMap[+q],
-    qNum:     +q
+    qNum:     +q,
+    metaQ:    getMetaQ(+q)
   }));
 
   if(!QUINCENAS.length) return [];
@@ -328,11 +344,14 @@ function buildFromCSV(rows){
     .map(r=>({
       name:      (r[colNombre]||'').trim(),
       short:     makeShort((r[colNombre]||'').trim()),
+      abbrev:    makeAbbrev((r[colNombre]||'').trim()),
       nivel:     colNivel>=0 ? (r[colNivel]||'').trim() : '',
       quincenas: QUINCENAS.map(q=>({
         label:    q.label,
         sessions: q.sessions,
-        hours:    parseHours(r[q.colIdx])
+        hours:    parseHours(r[q.colIdx]),
+        metaQ:    q.metaQ,
+        qNum:     q.qNum
       }))
     }))
     .filter(l=>l.name);
@@ -365,12 +384,14 @@ function renderKPIs(){
   if(lastQ>=0){
     const vals=leaders.map(l=>l.quincenas[lastQ]?.hours).filter(h=>h!==null);
     if(vals.length){
+      const metaLastQ = QUINCENAS[lastQ].metaQ;
       avgLast=vals.reduce((a,b)=>a+b,0)/vals.length;
-      pctMeta=Math.round(vals.filter(h=>h>=META).length/vals.length*100);
+      pctMeta=Math.round(vals.filter(h=>h>=metaLastQ).length/vals.length*100);
     }
   }
 
-  const avgColor = avgLast===null?'blue':avgLast>=META?'green':avgLast>=META*0.8?'amber':'red';
+  const metaRef = lastQ>=0 ? QUINCENAS[lastQ].metaQ : getMetaQ(1);
+  const avgColor = avgLast===null?'blue':avgLast>=metaRef?'green':avgLast>=metaRef*0.8?'amber':'red';
   const pctColor = pctMeta===null?'blue':pctMeta>=80?'green':pctMeta>=60?'amber':'red';
 
   document.getElementById('kpi-row').innerHTML=`
@@ -403,7 +424,9 @@ function renderChart(){
       label:    q.label,
       sessions: q.sessions,
       avg:      vals.length ? vals.reduce((a,b)=>a+b,0)/vals.length : null,
-      n:        vals.length
+      n:        vals.length,
+      metaQ:    q.metaQ,
+      qNum:     q.qNum
     };
   });
 
@@ -418,7 +441,8 @@ function renderChart(){
     return;
   }
 
-  const maxVal = Math.max(META*1.4, d3.max(data,d=>d.avg??0)*1.15);
+  const maxMeta = Math.max(...QUINCENAS.map(q=>q.metaQ));
+  const maxVal = Math.max(maxMeta*1.3, d3.max(data,d=>d.avg??0)*1.15);
   const x = d3.scaleBand().domain(QUINCENAS.map(q=>q.label)).range([0,iW]).padding(0.35);
   const y = d3.scaleLinear().domain([0,maxVal]).range([iH,0]);
   const g = svg.append('g').attr('transform',`translate(${m.l},${m.t})`);
@@ -434,7 +458,7 @@ function renderChart(){
     .attr('y',d=>d.avg!==null?y(d.avg):iH)
     .attr('height',d=>d.avg!==null?Math.max(0,iH-y(d.avg)):0)
     .attr('rx',5)
-    .attr('fill',d=>perfColor(d.avg))
+    .attr('fill',d=>perfColor(d.avg, d.metaQ))
     .attr('fill-opacity',d=>d.avg!==null?0.85:0.15);
 
   // Value labels above bars
@@ -443,19 +467,39 @@ function renderChart(){
     .attr('y',d=>d.avg!==null?y(d.avg)-5:iH)
     .attr('text-anchor','middle')
     .style('font-size','10px').style('font-weight','800')
-    .style('fill',d=>perfColor(d.avg))
+    .style('fill',d=>perfColor(d.avg, d.metaQ))
     .style('opacity',d=>d.avg!==null?1:0)
     .text(d=>d.avg!==null?d.avg.toFixed(1)+'h':'');
 
-  // META dashed line
-  g.append('line')
-    .attr('x1',0).attr('x2',iW)
-    .attr('y1',y(META)).attr('y2',y(META))
-    .attr('stroke','#2563eb').attr('stroke-width',1.5).attr('stroke-dasharray','6,3');
-  g.append('text')
-    .attr('x',iW+6).attr('y',y(META)+4)
-    .style('fill','#2563eb').style('font-size','9px').style('font-weight','800')
-    .text(META+'h');
+  // META escalonada: un segmento por quincena
+  QUINCENAS.forEach((q,i)=>{
+    const qx = x(q.label);
+    if(qx===undefined) return;
+    const ym = y(q.metaQ);
+    // Segmento horizontal en el META de esta quincena
+    g.append('line')
+      .attr('x1',qx).attr('x2',qx+x.bandwidth())
+      .attr('y1',ym).attr('y2',ym)
+      .attr('stroke','#2563eb').attr('stroke-width',2).attr('stroke-dasharray','5,3');
+    // Conector diagonal al siguiente (si existe)
+    if(i<QUINCENAS.length-1){
+      const nextQ=QUINCENAS[i+1];
+      const nx=x(nextQ.label);
+      if(nx!==undefined){
+        g.append('line')
+          .attr('x1',qx+x.bandwidth()).attr('x2',nx)
+          .attr('y1',ym).attr('y2',y(nextQ.metaQ))
+          .attr('stroke','#93c5fd').attr('stroke-width',1).attr('stroke-dasharray','3,3');
+      }
+    }
+    // Etiqueta META al final del último segmento
+    if(i===QUINCENAS.length-1){
+      g.append('text')
+        .attr('x',qx+x.bandwidth()+4).attr('y',ym+4)
+        .style('fill','#2563eb').style('font-size','8px').style('font-weight','800')
+        .text(q.metaQ+'h');
+    }
+  });
 
   // X axis
   const xAx = g.append('g').attr('transform',`translate(0,${iH})`).call(d3.axisBottom(x).tickSize(0));
@@ -498,7 +542,7 @@ function renderHeatmap(){
     </td>`;
     l.quincenas.forEach(q=>{
       const h=q.hours;
-      html+=`<td class="hm-cell" style="background:${perfBg(h)};color:${perfColor(h)};">
+      html+=`<td class="hm-cell" style="background:${perfBg(h,q.metaQ)};color:${perfColor(h,q.metaQ)};">
         ${h!==null?h.toFixed(1)+'h':'—'}
       </td>`;
     });
@@ -524,7 +568,7 @@ function renderIndividual(){
   const total = vals.reduce((a,b)=>a+b,0);
   const avg   = vals.length ? total/vals.length : null;
   const best  = vals.length ? Math.max(...vals)  : null;
-  const inMeta= vals.filter(h=>h>=META).length;
+  const inMeta= leader.quincenas.filter(q=>q.hours!==null&&q.hours>=q.metaQ).length;
 
   let html=`
     <div class="leader-hero">
@@ -532,18 +576,19 @@ function renderIndividual(){
     </div>
     <div style="display:flex;gap:0;border-bottom:1px solid #e2e8f0;">
       ${miniKpi('Total acumulado', total?total.toFixed(1)+'h':'—', 'blue')}
-      ${miniKpi('Promedio/quincena', avg?avg.toFixed(1)+'h':'—', avg?avg>=META?'green':avg>=META*0.8?'amber':'red':'blue')}
-      ${miniKpi('Mejor quincena', best?best.toFixed(1)+'h':'—', best?best>=META?'green':best>=META*0.8?'amber':'red':'blue')}
+      ${miniKpi('Promedio/quincena', avg?avg.toFixed(1)+'h':'—', 'blue')}
+      ${miniKpi('Mejor quincena', best?best.toFixed(1)+'h':'—', 'blue')}
       ${miniKpi('Quincenas en meta', inMeta+' / '+vals.length, inMeta===vals.length&&vals.length>0?'green':inMeta>0?'amber':'red')}
     </div>
     <div class="q-cards">`;
 
   leader.quincenas.forEach(q=>{
     const h    = q.hours;
-    const pct  = h!==null ? Math.min(100,(h/META)*100) : 0;
-    const col  = perfColor(h);
-    const bg   = perfBg(h);
-    const lbl  = h!==null?(h>=META?'✓ En meta':'Bajo meta'):'Sin dato';
+    const meta = q.metaQ;
+    const pct  = h!==null ? Math.min(100,(h/meta)*100) : 0;
+    const col  = perfColor(h, meta);
+    const bg   = perfBg(h, meta);
+    const lbl  = h!==null?(h>=meta?'✓ En meta':'Bajo meta'):'Sin dato';
     html+=`<div class="q-card">
       <div class="qc-top" style="background:${bg};">
         <div class="qc-label">${q.label}</div>
@@ -557,7 +602,7 @@ function renderIndividual(){
         </div>
         <div class="qc-bar-labels">
           <span style="font-size:.58rem;color:#94a3b8;">0h</span>
-          <span style="font-size:.58rem;color:#2563eb;font-weight:700;">Meta ${META}h</span>
+          <span style="font-size:.58rem;color:#2563eb;font-weight:700;">Meta ${meta}h</span>
         </div>
       </div>
     </div>`;
@@ -606,7 +651,7 @@ async function init(){
     LEADERS    = buildFromCSV(rows);
 
     document.getElementById('loading').style.display='none';
-    document.getElementById('meta-badge').textContent='META '+META+'h / quincena';
+    document.getElementById('meta-badge').textContent='META progresiva por quincena';
 
     // Populate leader select
     const sel=document.getElementById('leader-select');
