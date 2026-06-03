@@ -97,6 +97,12 @@ header{background:linear-gradient(90deg,#1e3a8a,#1d4ed8,#2563eb);padding:11px 24
 .qc-bar-fill{height:100%;border-radius:4px;transition:width .4s;}
 .qc-bar-labels{display:flex;justify-content:space-between;margin-top:4px;}
 
+/* ─── QUINCENA CHIPS ─── */
+.sess-chip{font-size:.63rem;padding:3px 9px;border-radius:6px;cursor:pointer;border:1px solid #e2e8f0;background:#f8fafc;color:#64748b;font-weight:700;user-select:none;transition:all .12s;}
+.sess-chip.on{background:#1d4ed8;border-color:#1d4ed8;color:#fff;}
+.sess-chip:hover:not(.on){background:#f1f5f9;}
+.hm-col-head.dim,.hm-cell.dim{opacity:.2;pointer-events:none;}
+
 /* ─── EMPTY STATE ─── */
 .empty-state{padding:40px;text-align:center;color:#94a3b8;font-size:.78rem;}
 
@@ -153,6 +159,9 @@ footer{margin-top:36px;padding:20px;text-align:center;font-size:.62rem;color:#94
     <div class="vtab" onclick="switchNivel('intermedio',this)">Intermedios</div>
     <div class="vtab" onclick="switchNivel('nuevo',this)">Nuevos</div>
   </div>
+  <div class="ctrl-sep"></div>
+  <span class="ctrl-label">Quincena</span>
+  <div style="display:flex;gap:4px;flex-wrap:wrap;" id="q-chips"></div>
   <div class="ctrl-sep" id="sel-sep" style="display:none"></div>
   <span class="ctrl-label" id="sel-lbl" style="display:none">Líder</span>
   <select class="leader-sel" id="leader-select" style="display:none"></select>
@@ -222,8 +231,9 @@ const Q_SESSIONS = ['S1 → S2','S3 → S4','S5 → S6','S7 → S8','S9 → S10'
 // ─── STATE ────────────────────────────────────────────────────────────────────
 let LEADERS    = [];
 let QUINCENAS  = [];
-let currentView  = 'general';
-let currentNivel = 'todos';
+let currentView      = 'general';
+let currentNivel     = 'todos';
+let currentQuincenas = new Set(); // vacío = todas
 
 // ─── UTILS ────────────────────────────────────────────────────────────────────
 function nrm(s){ return (s||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().trim(); }
@@ -367,40 +377,58 @@ function filteredLeaders(){
     return true;
   });
 }
+function filteredQuincenas(){
+  if(currentQuincenas.size===0) return QUINCENAS;
+  return QUINCENAS.filter(q=>currentQuincenas.has(q.label));
+}
 
 // ─── KPIs ─────────────────────────────────────────────────────────────────────
 function renderKPIs(){
-  const leaders = filteredLeaders();
-  const withData = leaders.filter(l=>l.quincenas.some(q=>q.hours!==null));
+  const leaders  = filteredLeaders();
+  const activeQs = filteredQuincenas();
 
-  // Last active quincena index
-  let lastQ = -1;
-  QUINCENAS.forEach((_,i)=>{
-    if(leaders.some(l=>l.quincenas[i]?.hours!==null)) lastQ=i;
+  // Leaders with data in any active quincena
+  const withData = leaders.filter(l=>
+    l.quincenas.some(q=>activeQs.some(aq=>aq.label===q.label)&&q.hours!==null)
+  );
+
+  // Last active quincena index (within filter) that has data
+  let lastQIdx=-1;
+  activeQs.forEach(aq=>{
+    const idx=QUINCENAS.findIndex(q=>q.label===aq.label);
+    if(idx>=0&&leaders.some(l=>l.quincenas[idx]?.hours!==null)) lastQIdx=idx;
   });
 
-  // Avg hours last quincena
+  // Avg + % en meta for last active quincena
   let avgLast=null, pctMeta=null;
-  if(lastQ>=0){
-    const vals=leaders.map(l=>l.quincenas[lastQ]?.hours).filter(h=>h!==null);
+  if(lastQIdx>=0){
+    const metaLastQ=QUINCENAS[lastQIdx].metaQ;
+    const vals=leaders.map(l=>l.quincenas[lastQIdx]?.hours).filter(h=>h!==null);
     if(vals.length){
-      const metaLastQ = QUINCENAS[lastQ].metaQ;
       avgLast=vals.reduce((a,b)=>a+b,0)/vals.length;
       pctMeta=Math.round(vals.filter(h=>h>=metaLastQ).length/vals.length*100);
     }
   }
 
-  const metaRef = lastQ>=0 ? QUINCENAS[lastQ].metaQ : getMetaQ(1);
+  // Quincenas con al menos un dato dentro del filtro
+  const qActivas=activeQs.filter(aq=>{
+    const idx=QUINCENAS.findIndex(q=>q.label===aq.label);
+    return leaders.some(l=>l.quincenas[idx]?.hours!==null);
+  }).length;
+
+  const metaRef  = lastQIdx>=0?QUINCENAS[lastQIdx].metaQ:getMetaQ(1);
   const avgColor = avgLast===null?'blue':avgLast>=metaRef?'green':avgLast>=metaRef*0.8?'amber':'red';
   const pctColor = pctMeta===null?'blue':pctMeta>=80?'green':pctMeta>=60?'amber':'red';
+  const qLabel   = lastQIdx>=0?QUINCENAS[lastQIdx].label:'';
 
   document.getElementById('kpi-row').innerHTML=`
     <div class="kpi"><div class="kv blue">${withData.length}</div><div class="kl">Líderes con datos</div></div>
-    <div class="kpi"><div class="kv ${avgColor}">${avgLast!==null?avgLast.toFixed(1)+'h':'—'}</div><div class="kl">Promedio ${lastQ>=0?QUINCENAS[lastQ].label:''}</div></div>
-    <div class="kpi"><div class="kv blue">${lastQ+1}</div><div class="kl">Quincenas activas</div></div>
+    <div class="kpi"><div class="kv ${avgColor}">${avgLast!==null?avgLast.toFixed(1)+'h':'—'}</div><div class="kl">Promedio ${qLabel}</div></div>
+    <div class="kpi"><div class="kv blue">${qActivas}</div><div class="kl">Quincenas activas</div></div>
     <div class="kpi"><div class="kv ${pctColor}">${pctMeta!==null?pctMeta+'%':'—'}</div><div class="kl">% en meta (última Q)</div></div>
   `;
 }
+
 
 // ─── BAR CHART ────────────────────────────────────────────────────────────────
 function renderChart(){
@@ -459,7 +487,10 @@ function renderChart(){
     .attr('height',d=>d.avg!==null?Math.max(0,iH-y(d.avg)):0)
     .attr('rx',5)
     .attr('fill',d=>perfColor(d.avg, d.metaQ))
-    .attr('fill-opacity',d=>d.avg!==null?0.85:0.15);
+    .attr('fill-opacity',d=>{
+      const active=currentQuincenas.size===0||currentQuincenas.has(d.label);
+      return active&&d.avg!==null?0.85:0.1;
+    });
 
   // Value labels above bars
   g.selectAll('.val-lbl').data(data).join('text').attr('class','val-lbl')
@@ -468,7 +499,10 @@ function renderChart(){
     .attr('text-anchor','middle')
     .style('font-size','10px').style('font-weight','800')
     .style('fill',d=>perfColor(d.avg, d.metaQ))
-    .style('opacity',d=>d.avg!==null?1:0)
+    .style('opacity',d=>{
+      const active=currentQuincenas.size===0||currentQuincenas.has(d.label);
+      return active&&d.avg!==null?1:0;
+    })
     .text(d=>d.avg!==null?d.avg.toFixed(1)+'h':'');
 
   // META escalonada: un segmento por quincena
@@ -476,11 +510,13 @@ function renderChart(){
     const qx = x(q.label);
     if(qx===undefined) return;
     const ym = y(q.metaQ);
+    const activeQ = currentQuincenas.size===0||currentQuincenas.has(q.label);
     // Segmento horizontal en el META de esta quincena
     g.append('line')
       .attr('x1',qx).attr('x2',qx+x.bandwidth())
       .attr('y1',ym).attr('y2',ym)
-      .attr('stroke','#2563eb').attr('stroke-width',2).attr('stroke-dasharray','5,3');
+      .attr('stroke','#2563eb').attr('stroke-width',2).attr('stroke-dasharray','5,3')
+      .attr('opacity', activeQ?1:0.15);
     // Conector diagonal al siguiente (si existe)
     if(i<QUINCENAS.length-1){
       const nextQ=QUINCENAS[i+1];
@@ -529,7 +565,8 @@ function renderHeatmap(){
   let html='<thead><tr>';
   html+='<th class="hm-name-head">Líder</th>';
   QUINCENAS.forEach(q=>{
-    html+=`<th class="hm-col-head">
+    const activeH=currentQuincenas.size===0||currentQuincenas.has(q.label);
+    html+=`<th class="hm-col-head${activeH?'':' dim'}">
       <div class="hm-q-label">${q.label}</div>
       <div class="hm-q-sess">${q.sessions}</div>
     </th>`;
@@ -542,7 +579,8 @@ function renderHeatmap(){
     </td>`;
     l.quincenas.forEach(q=>{
       const h=q.hours;
-      html+=`<td class="hm-cell" style="background:${perfBg(h,q.metaQ)};color:${perfColor(h,q.metaQ)};">
+      const activeC=currentQuincenas.size===0||currentQuincenas.has(q.label);
+      html+=`<td class="hm-cell${activeC?'':' dim'}" style="background:${perfBg(h,q.metaQ)};color:${perfColor(h,q.metaQ)};">
         ${h!==null?h.toFixed(1)+'h':'—'}
       </td>`;
     });
@@ -619,6 +657,27 @@ function miniKpi(lbl,val,color){
   </div>`;
 }
 
+// ─── QUINCENA CHIPS ───────────────────────────────────────────────────────────
+function populateQuincenaChips(){
+  const wrap=document.getElementById('q-chips');
+  wrap.innerHTML='';
+  QUINCENAS.forEach(q=>{
+    const chip=document.createElement('div');
+    chip.className='sess-chip';
+    chip.textContent=q.label;
+    chip.title=q.sessions;
+    chip.onclick=()=>switchQuincena(q.label,chip);
+    wrap.appendChild(chip);
+  });
+}
+function switchQuincena(label,el){
+  if(currentQuincenas.has(label)){currentQuincenas.delete(label);el.classList.remove('on');}
+  else{currentQuincenas.add(label);el.classList.add('on');}
+  renderKPIs();
+  renderHeatmap();
+  if(currentView==='general') setTimeout(renderChart,50);
+}
+
 // ─── SWITCH HANDLERS ──────────────────────────────────────────────────────────
 function switchView(view, el){
   currentView=view;
@@ -658,6 +717,7 @@ async function init(){
     sel.innerHTML=LEADERS.map(l=>`<option value="${l.name}">${l.name}</option>`).join('');
     sel.addEventListener('change', renderIndividual);
 
+    populateQuincenaChips();
     renderKPIs();
     renderChart();
     renderHeatmap();
