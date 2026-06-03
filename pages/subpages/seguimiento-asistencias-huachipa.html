@@ -54,6 +54,12 @@ table.hm th,table.hm td{border:1px solid #f1f5f9;white-space:nowrap;}
 .hm-col-head{padding:5px 8px;background:#f8fafc;color:#64748b;font-weight:700;text-align:center;position:sticky;top:0;z-index:2;min-width:52px;}
 .hm-col-head .snum{font-size:.7rem;color:#1d4ed8;display:block;}
 .hm-col-head .sdate{font-size:.55rem;color:#94a3b8;font-weight:400;}
+.hm-col-head .snivel{font-size:.5rem;font-weight:700;border-radius:3px;padding:1px 4px;display:inline-block;margin-bottom:2px;}
+.snivel-int{background:#eff6ff;color:#1d4ed8;}
+.snivel-nvo{background:#f0fdf4;color:#16a34a;}
+.nivel-badge{font-size:.52rem;padding:1px 5px;border-radius:5px;font-weight:700;margin-left:4px;vertical-align:middle;border:1px solid;}
+.nb-int{background:#eff6ff;color:#1d4ed8;border-color:#bfdbfe;}
+.nb-nvo{background:#f0fdf4;color:#16a34a;border-color:#bbf7d0;}
 .hm-cell{width:52px;min-width:52px;height:28px;text-align:center;vertical-align:middle;font-weight:700;font-size:.65rem;cursor:default;}
 .hm-cell.si{background:#dcfce7;color:#16a34a;}
 .hm-cell.no{background:#fee2e2;color:#dc2626;cursor:pointer;}
@@ -136,6 +142,13 @@ table.hm th,table.hm td{border:1px solid #f1f5f9;white-space:nowrap;}
     <div class="vtab" onclick="switchView('lider',this)">👤 Por líder</div>
   </div>
   <span class="sep">|</span>
+  <span class="ctrl-label">Nivel</span>
+  <div class="view-tabs" id="nivel-tabs">
+    <div class="vtab on" onclick="switchNivel('todos',this)">Todos</div>
+    <div class="vtab" onclick="switchNivel('intermedio',this)">Intermedios</div>
+    <div class="vtab" onclick="switchNivel('nuevo',this)">Nuevos</div>
+  </div>
+  <span class="sep">|</span>
   <span class="ctrl-label">Líder</span>
   <select class="sel-leader" id="sel-leader" onchange="onLeaderChange()">
     <option value="">— Seleccionar —</option>
@@ -146,7 +159,7 @@ table.hm th,table.hm td{border:1px solid #f1f5f9;white-space:nowrap;}
 <div class="view on" id="v-general">
 
   <div class="chart-wrap">
-    <div class="chart-title">Asistencia por sesión — todos los líderes intermedios</div>
+    <div class="chart-title" id="chart-title">Asistencia por sesión — todos los líderes</div>
     <canvas id="bar-canvas"></canvas>
   </div>
 
@@ -171,7 +184,7 @@ const CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vSI4G-2KDHTK9i7
 
 // ══════════ GLOBALS ══════════
 let LEADERS = [], SESSIONS = [], DATES = [];
-let currentView = 'general', currentLeader = '';
+let currentView = 'general', currentLeader = '', currentNivel = 'todos';
 
 // ══════════ CSV PARSER (robusto) ══════════
 function nrm(s){return(s||'').trim().toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'');}
@@ -204,7 +217,7 @@ function normalizeAtt(v){
 function buildFromCSV(rows){
   // ── 1. Localizar fila de headers ──
   let headerIdx=-1, headers=[];
-  for(let i=0;i<Math.min(rows.length,5);i++){
+  for(let i=0;i<Math.min(rows.length,10);i++){
     const norm=rows[i].map(c=>nrm(c));
     if(norm.some(c=>c.includes('colaborador'))){
       headerIdx=i; headers=norm; break;
@@ -216,6 +229,7 @@ function buildFromCSV(rows){
   const fi=(terms)=>headers.findIndex(h=>terms.some(t=>h.includes(nrm(t))));
   const colPlanta    = fi(['planta']);
   const colNombre    = fi(['colaborador']);
+  const colNivel     = fi(['nivel']);
 
   // ── 3. Detectar TODAS las sesiones dinámicamente ──
   // Busca headers con patrón: "asistencia s1", "asistencia s 1", "asiste s1", etc.
@@ -235,9 +249,18 @@ function buildFromCSV(rows){
   SESSIONS.sort((a,b)=>a.num-b.num);
   console.log('Sesiones detectadas:', SESSIONS.map(s=>s.label+'@'+s.attIdx));
 
-  // ── 4. Extraer fechas de la fila anterior (rango de fecha) ──
-  const dateRow = headerIdx>0 ? rows[headerIdx-1] : [];
+  // ── 4. Extraer fechas y nivel de las filas anteriores al header ──
+  // Estructura del sheet (desde abajo hacia arriba):
+  //   headerIdx-2 → fila de rangos de fecha
+  //   headerIdx-1 → fila de etiquetas de nivel (Intermedio / Nuevo) — fila nueva
+  //   headerIdx   → fila de headers
+  const dateRow  = headerIdx>=2 ? rows[headerIdx-2] : (headerIdx>=1 ? rows[headerIdx-1] : []);
+  const nivelRow = headerIdx>=2 ? rows[headerIdx-1] : [];
   DATES = SESSIONS.map(s => (dateRow[s.attIdx]||'').trim());
+  // Adjuntar etiqueta de nivel a cada sesión (para mostrar en cabecera del heatmap)
+  SESSIONS.forEach(s => {
+    s.nivelLabel = (nivelRow[s.attIdx]||'').trim();
+  });
 
   // ── 5. Filas de datos: solo HUACHIPA ──
   const data = rows.slice(headerIdx+1).filter(r=>{
@@ -251,6 +274,7 @@ function buildFromCSV(rows){
   return data.map(r=>({
     name:  (r[colNombre]||'').trim(),
     short: makeShort((r[colNombre]||'').trim()),
+    nivel: colNivel>=0 ? (r[colNivel]||'').trim() : '',
     sessions: SESSIONS.map(s=>({
       label:  s.label,
       att:    normalizeAtt(r[s.attIdx]||''),
@@ -266,20 +290,39 @@ function makeShort(full){
   return p[0]||full;
 }
 
+function filteredLeaders(){
+  if(currentNivel==='todos') return LEADERS;
+  return LEADERS.filter(l=>{
+    const n=nrm(l.nivel);
+    if(currentNivel==='intermedio') return n.includes('intermed');
+    if(currentNivel==='nuevo') return n.includes('nuevo')||n==='new';
+    return true;
+  });
+}
+
+function nivelBadgeHtml(nivel){
+  if(!nivel) return '';
+  const n=nrm(nivel);
+  const cls=n.includes('intermed')?'nb-int':'nb-nvo';
+  return `<span class="nivel-badge ${cls}">${nivel}</span>`;
+}
+
 // ══════════ KPIs ══════════
 function renderKPIs(){
-  const total = LEADERS.length;
+  const fl = filteredLeaders();
+  const total = fl.length;
   let asist=0,faltas=0,total_reg=0;
-  LEADERS.forEach(l=>l.sessions.forEach(s=>{
+  fl.forEach(l=>l.sessions.forEach(s=>{
     if(s.att==='SI'){asist++;total_reg++;}
     else if(s.att==='NO'){faltas++;total_reg++;}
   }));
   const pct = total_reg>0 ? Math.round(asist/total_reg*100) : 0;
+  const nivelLbl = currentNivel==='todos'?'líderes':currentNivel==='intermedio'?'intermedios':'nuevos';
   document.getElementById('k-lideres').textContent = total;
   document.getElementById('k-asist').textContent   = asist;
   document.getElementById('k-faltas').textContent  = faltas;
   document.getElementById('k-pct').textContent     = pct+'%';
-  document.getElementById('hbadge').textContent    = total+' líderes · S1–S'+(SESSIONS.filter((_,i)=>LEADERS.some(l=>l.sessions[i].att!=='')).reduce((m,_,i)=>i+1,0)||8);
+  document.getElementById('hbadge').textContent    = total+' '+nivelLbl+' · S1–S'+(SESSIONS.length||8);
 }
 
 // ══════════ HEATMAP ══════════
@@ -296,14 +339,21 @@ function renderHeatmap(){
   // Cabeceras de sesión
   SESSIONS.forEach((s,i)=>{
     const th=document.createElement('th');th.className='hm-col-head';
-    th.innerHTML=`<span class="snum">${s.label}</span><span class="sdate">${DATES[i]||''}</span>`;
+    const nivelTag = s.nivelLabel ? (() => {
+      const n=nrm(s.nivelLabel);
+      const cls=n.includes('intermed')?'snivel-int':'snivel-nvo';
+      return `<span class="snivel ${cls}">${s.nivelLabel}</span>`;
+    })() : '';
+    th.innerHTML=`${nivelTag}<span class="snum">${s.label}</span><span class="sdate">${DATES[i]||''}</span>`;
     hr.appendChild(th);
   });
 
+  const fl=filteredLeaders();
   const tbody=tbl.createTBody();
-  LEADERS.forEach(l=>{
+  fl.forEach(l=>{
     const tr=tbody.insertRow();
-    const th=document.createElement('th');th.className='hm-row-head';th.textContent=l.short;th.title=l.name;
+    const th=document.createElement('th');th.className='hm-row-head';
+    th.innerHTML=l.short+nivelBadgeHtml(l.nivel);th.title=l.name;
     tr.appendChild(th);
     l.sessions.forEach(s=>{
       const td=tr.insertCell();
@@ -329,9 +379,14 @@ function renderChart(){
   const svg=d3.select(parent).append('svg').attr('id','bar-canvas')
     .attr('width',W).attr('height',H).style('display','block');
 
+  const fl=filteredLeaders();
+  const nivelTitle={'todos':'todos los líderes','intermedio':'líderes intermedios','nuevo':'líderes nuevos'};
+  const chartTitleEl=document.getElementById('chart-title');
+  if(chartTitleEl) chartTitleEl.textContent='Asistencia por sesión — '+nivelTitle[currentNivel];
+
   const data=SESSIONS.map((s,i)=>{
     let si=0,no=0;
-    LEADERS.forEach(l=>{
+    fl.forEach(l=>{
       if(l.sessions[i].att==='SI')si++;
       else if(l.sessions[i].att==='NO')no++;
     });
@@ -344,7 +399,7 @@ function renderChart(){
   const g=svg.append('g').attr('transform',`translate(${margin.left},${margin.top})`);
 
   const x=d3.scaleBand().domain(data.map(d=>d.label)).range([0,iW]).padding(.28);
-  const maxVal=LEADERS.length||1;
+  const maxVal=fl.length||1;
   const y=d3.scaleLinear().domain([0,maxVal]).nice().range([iH,0]);
 
   // Ejes
@@ -401,7 +456,7 @@ function renderLeaderView(leaderName){
     <div class="lh-avatar">👤</div>
     <div>
       <div class="lh-name">${l.name}</div>
-      <div class="lh-sub">Líder Intermedio · Huachipa</div>
+      <div class="lh-sub">${l.nivel||'Líder'} · Huachipa</div>
       <div class="lh-pills">
         <span class="lpill lpill-g">✓ ${si} asistencias</span>
         <span class="lpill lpill-r">✗ ${no} faltas</span>
@@ -439,14 +494,31 @@ function renderLeaderView(leaderName){
 // ══════════ SELECT DE LÍDERES ══════════
 function populateSelect(){
   const sel=document.getElementById('sel-leader');
-  LEADERS.forEach(l=>{
+  const prev=sel.value;
+  sel.innerHTML='<option value="">— Seleccionar —</option>';
+  filteredLeaders().forEach(l=>{
     const opt=document.createElement('option');
-    opt.value=l.name;opt.textContent=l.short;
+    opt.value=l.name;opt.textContent=l.short+(l.nivel?` (${l.nivel})`:'');
     sel.appendChild(opt);
   });
+  // Mantener selección si sigue disponible en el filtro actual
+  if(prev && filteredLeaders().some(l=>l.name===prev)) sel.value=prev;
+  else currentLeader='';
 }
 function onLeaderChange(){
   currentLeader=document.getElementById('sel-leader').value;
+  if(currentView==='lider') renderLeaderView(currentLeader);
+}
+
+// ══════════ SWITCH NIVEL ══════════
+function switchNivel(nivel,el){
+  currentNivel=nivel;
+  document.querySelectorAll('#nivel-tabs .vtab').forEach(t=>t.classList.remove('on'));
+  el.classList.add('on');
+  populateSelect();
+  renderKPIs();
+  renderHeatmap();
+  if(currentView==='general') setTimeout(renderChart,50);
   if(currentView==='lider') renderLeaderView(currentLeader);
 }
 
