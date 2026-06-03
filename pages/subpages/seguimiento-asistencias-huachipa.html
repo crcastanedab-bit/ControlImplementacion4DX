@@ -51,16 +51,19 @@ header{background:linear-gradient(90deg,#1e3a8a,#1d4ed8,#2563eb);padding:11px 24
 table.hm{border-collapse:collapse;font-size:.62rem;min-width:100%;}
 table.hm th,table.hm td{border:1px solid #f1f5f9;white-space:nowrap;}
 .hm-row-head{padding:6px 12px;background:#f8fafc;color:#475569;font-weight:600;position:sticky;left:0;z-index:3;min-width:160px;font-size:.65rem;border-right:2px solid #e2e8f0;}
-.hm-col-head{padding:5px 8px;background:#f8fafc;color:#64748b;font-weight:700;text-align:center;position:sticky;top:0;z-index:2;min-width:52px;}
-.hm-col-head .snum{font-size:.7rem;color:#1d4ed8;display:block;}
-.hm-col-head .sdate{font-size:.55rem;color:#94a3b8;font-weight:400;}
-.hm-col-head .snivel{font-size:.5rem;font-weight:700;border-radius:3px;padding:1px 4px;display:inline-block;margin-bottom:2px;}
-.snivel-int{background:#eff6ff;color:#1d4ed8;}
-.snivel-nvo{background:#f0fdf4;color:#16a34a;}
+.hm-col-head{padding:5px 6px 4px;background:#f8fafc;color:#64748b;font-weight:700;text-align:center;position:sticky;top:0;z-index:2;min-width:110px;}
+.hm-col-head .snum{font-size:.72rem;color:#1d4ed8;display:block;margin-top:3px;}
+/* ─── Fechas por nivel sobre el número de sesión ─── */
+.sh-dates{display:flex;flex-direction:column;gap:2px;margin-bottom:1px;}
+.sh-date{font-size:.51rem;font-weight:600;border-radius:4px;padding:2px 5px;display:flex;align-items:center;gap:3px;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;}
+.sh-date-int{background:#eff6ff;color:#1d4ed8;}
+.sh-date-nvo{background:#f0fdf4;color:#16a34a;}
+.sh-tag{font-size:.47rem;font-weight:800;opacity:.7;flex-shrink:0;letter-spacing:.3px;}
+/* ─── Badge nivel en fila del heatmap ─── */
 .nivel-badge{font-size:.52rem;padding:1px 5px;border-radius:5px;font-weight:700;margin-left:4px;vertical-align:middle;border:1px solid;}
 .nb-int{background:#eff6ff;color:#1d4ed8;border-color:#bfdbfe;}
 .nb-nvo{background:#f0fdf4;color:#16a34a;border-color:#bbf7d0;}
-.hm-cell{width:52px;min-width:52px;height:28px;text-align:center;vertical-align:middle;font-weight:700;font-size:.65rem;cursor:default;}
+.hm-cell{width:110px;min-width:110px;height:28px;text-align:center;vertical-align:middle;font-weight:700;font-size:.65rem;cursor:default;}
 .hm-cell.si{background:#dcfce7;color:#16a34a;}
 .hm-cell.no{background:#fee2e2;color:#dc2626;cursor:pointer;}
 .hm-cell.no:hover{background:#fecaca;}
@@ -256,11 +259,14 @@ function buildFromCSV(rows){
   //   headerIdx   → fila de headers
   const dateRow  = headerIdx>=2 ? rows[headerIdx-2] : (headerIdx>=1 ? rows[headerIdx-1] : []);
   const nivelRow = headerIdx>=2 ? rows[headerIdx-1] : [];
-  DATES = SESSIONS.map(s => (dateRow[s.attIdx]||'').trim());
-  // Adjuntar etiqueta de nivel a cada sesión (para mostrar en cabecera del heatmap)
+  // Adjuntar fechas por nivel a cada sesión
+  // rows[headerIdx-2] → fechas de Intermedios
+  // rows[headerIdx-1] → fechas de Nuevos  (fila agregada por el usuario)
   SESSIONS.forEach(s => {
-    s.nivelLabel = (nivelRow[s.attIdx]||'').trim();
+    s.dateInt = (dateRow[s.attIdx]||'').trim();
+    s.dateNvo = (nivelRow[s.attIdx]||'').trim();
   });
+  DATES = SESSIONS.map(s => s.dateInt); // compatibilidad con renderLeaderView
 
   // ── 5. Filas de datos: solo HUACHIPA ──
   const data = rows.slice(headerIdx+1).filter(r=>{
@@ -336,15 +342,14 @@ function renderHeatmap(){
   corner.className='corner';corner.textContent='Líder ↓ / Sesión →';
   hr.appendChild(corner);
 
-  // Cabeceras de sesión
-  SESSIONS.forEach((s,i)=>{
+  // Cabeceras de sesión — muestra fecha de Intermedios y Nuevos sobre el número
+  SESSIONS.forEach((s)=>{
     const th=document.createElement('th');th.className='hm-col-head';
-    const nivelTag = s.nivelLabel ? (() => {
-      const n=nrm(s.nivelLabel);
-      const cls=n.includes('intermed')?'snivel-int':'snivel-nvo';
-      return `<span class="snivel ${cls}">${s.nivelLabel}</span>`;
-    })() : '';
-    th.innerHTML=`${nivelTag}<span class="snum">${s.label}</span><span class="sdate">${DATES[i]||''}</span>`;
+    const intLine = s.dateInt
+      ? `<div class="sh-date sh-date-int"><span class="sh-tag">INT</span>${s.dateInt}</div>` : '';
+    const nvoLine = s.dateNvo
+      ? `<div class="sh-date sh-date-nvo"><span class="sh-tag">NVO</span>${s.dateNvo}</div>` : '';
+    th.innerHTML=`<div class="sh-dates">${intLine}${nvoLine}</div><span class="snum">${s.label}</span>`;
     hr.appendChild(th);
   });
 
@@ -481,7 +486,7 @@ function renderLeaderView(leaderName){
         <span class="sc-badge ${cls}">${badgeTxt}</span>
       </div>
       <div class="sc-body">
-        ${DATES[i]?`<div class="sc-date">📅 ${DATES[i]}</div>`:''}
+        ${(SESSIONS[i].dateInt||SESSIONS[i].dateNvo)?`<div class="sc-date" style="display:flex;flex-direction:column;gap:2px;">${SESSIONS[i].dateInt?`<span style="color:#1d4ed8;font-size:.58rem">▸ Int: ${SESSIONS[i].dateInt}</span>`:''} ${SESSIONS[i].dateNvo?`<span style="color:#16a34a;font-size:.58rem">▸ Nvo: ${SESSIONS[i].dateNvo}</span>`:''}</div>`:''}
         ${motiHtml}
         ${s.tiempo?`<div style="font-size:.59rem;color:#94a3b8;margin-top:4px">⏱ ${s.tiempo} hrs</div>`:''}
       </div>
