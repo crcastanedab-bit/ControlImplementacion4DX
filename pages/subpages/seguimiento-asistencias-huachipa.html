@@ -311,9 +311,19 @@ function buildFromCSV(rows){
 }
 
 function makeShort(full){
-  const p=full.split(/\s+/);
-  if(p.length>=3)return p[0]+' '+p[p.length-1];
-  return p[0]||full;
+  // Primer nombre + primer apellido
+  // Para nombres españoles: nombre [nombre2] apellido1 [apellido2]
+  const p=(full||'').trim().split(/\s+/);
+  if(p.length<=2) return full.trim();
+  if(p.length===3) return p[0]+' '+p[1];       // nombre + primer apellido
+  return p[0]+' '+p[p.length-2];               // nombre + primer apellido (penúltimo)
+}
+function makeAbbrev(full){
+  // Primer nombre + inicial del primer apellido (para espacios reducidos)
+  const p=(full||'').trim().split(/\s+/);
+  if(p.length<=1) return full.trim();
+  const sur=p.length===2?p[1]:p.length===3?p[1]:p[p.length-2];
+  return p[0]+' '+sur[0]+'.';
 }
 
 function filteredLeaders(){
