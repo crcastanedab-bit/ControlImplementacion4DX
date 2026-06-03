@@ -77,8 +77,13 @@ table.hm th,table.hm td{border:1px solid #f1f5f9;white-space:nowrap;}
 
 /* ─── CHART ─── */
 .chart-wrap{background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:16px 20px;margin-bottom:14px;}
-.chart-title{font-size:.72rem;font-weight:700;color:#475569;margin-bottom:14px;}
-#bar-canvas{width:100%;height:220px;}
+.chart-header{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:12px;}
+.chart-title{font-size:.72rem;font-weight:700;color:#475569;margin:0;}
+.chart-legend{display:flex;gap:8px;flex-shrink:0;}
+.leg-item{font-size:.61rem;font-weight:700;padding:2px 9px;border-radius:6px;border:1px solid;}
+.leg-si{background:#dcfce7;color:#166534;border-color:#bbf7d0;}
+.leg-no{background:#fee2e2;color:#991b1b;border-color:#fecaca;}
+#bar-canvas{width:100%;display:block;}
 
 /* ─── VISTA POR LÍDER ─── */
 .leader-header{background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:16px 20px;margin-bottom:14px;display:flex;align-items:center;gap:14px;}
@@ -170,8 +175,14 @@ table.hm th,table.hm td{border:1px solid #f1f5f9;white-space:nowrap;}
 <div class="view on" id="v-general">
 
   <div class="chart-wrap">
-    <div class="chart-title" id="chart-title">Asistencia por sesión — todos los líderes</div>
-    <canvas id="bar-canvas"></canvas>
+    <div class="chart-header">
+      <div class="chart-title" id="chart-title">Asistencia por sesión — todos los líderes</div>
+      <div class="chart-legend">
+        <span class="leg-item leg-si">✓ Asistió</span>
+        <span class="leg-item leg-no">✗ Faltó</span>
+      </div>
+    </div>
+    <svg id="bar-canvas"></svg>
   </div>
 
   <div class="hm-wrap">
@@ -408,10 +419,10 @@ function renderChart(){
   if(chartTitleEl) chartTitleEl.textContent='Asistencia por sesión — '+nivelTitle[currentNivel];
 
   const chartWrap=document.querySelector('.chart-wrap');
-  d3.select('#bar-canvas').remove();
+  const svgEl=document.getElementById('bar-canvas');
   const W=chartWrap.clientWidth-40, H=240;
-  const svg=d3.select(chartWrap).append('svg').attr('id','bar-canvas')
-    .attr('width',W).attr('height',H).style('display','block');
+  d3.select(svgEl).selectAll('*').remove();
+  const svg=d3.select(svgEl).attr('width',W).attr('height',H);
 
   const data=SESSIONS.map((s,i)=>{
     let si=0,no=0;
@@ -423,7 +434,7 @@ function renderChart(){
     return{label:s.label,si,no,pct:total>0?Math.round(si/total*100):null,active:activeLabels.has(s.label)};
   });
 
-  const margin={top:28,right:32,bottom:32,left:34};
+  const margin={top:14,right:32,bottom:32,left:34};
   const iW=W-margin.left-margin.right, iH=H-margin.top-margin.bottom;
   const g=svg.append('g').attr('transform',`translate(${margin.left},${margin.top})`);
 
@@ -483,12 +494,6 @@ function renderChart(){
     .style('fill',d=>d.pct===null?'none':d.pct>=80?'#16a34a':d.pct>=60?'#d97706':'#dc2626')
     .style('opacity',d=>d.active?1:0.3).text(d=>d.pct!==null?d.pct+'%':'');
 
-  // Leyenda arriba izquierda
-  const leg=svg.append('g').attr('transform',`translate(${margin.left},8)`);
-  [['✓ Asistió','#4ade80','#166534'],['✗ Faltó','#f87171','#991b1b']].forEach(([lbl,fill,tc],i)=>{
-    leg.append('rect').attr('x',i*80).attr('y',0).attr('width',12).attr('height',12).attr('rx',3).attr('fill',fill).attr('fill-opacity',.9);
-    leg.append('text').attr('x',i*80+16).attr('y',9.5).style('font-size','9.5px').style('fill',tc).style('font-weight','600').text(lbl);
-  });
 }
 
 // ══════════ VISTA POR LÍDER ══════════
@@ -645,6 +650,15 @@ async function init(){
   renderHeatmap();
   renderChart();
   document.getElementById('loading').style.display='none';
+
+  // Responsividad: re-renderiza el gráfico al cambiar el tamaño del contenedor
+  if(window.ResizeObserver){
+    let _rt;
+    new ResizeObserver(()=>{
+      clearTimeout(_rt);
+      _rt=setTimeout(()=>{ if(currentView==='general') renderChart(); },120);
+    }).observe(document.querySelector('.chart-wrap'));
+  }
 }
 
 window.addEventListener('load',init);
