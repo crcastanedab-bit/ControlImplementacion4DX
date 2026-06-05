@@ -1,0 +1,748 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>4DX Independencia · Visualización de Equipos</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;}
+body{background:#f1f5f9;color:#1e293b;font-family:'Segoe UI',Arial,sans-serif;}
+
+/* ─── LOADING ─── */
+#loading-overlay{position:fixed;inset:0;background:#f1f5f9;z-index:999;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:12px;}
+.spin{width:30px;height:30px;border:3px solid #e2e8f0;border-top-color:#2563eb;border-radius:50%;animation:rot .7s linear infinite;}
+@keyframes rot{to{transform:rotate(360deg)}}
+.spin-lbl{font-size:.78rem;color:#64748b;}
+
+/* ─── DATA BANNER ─── */
+#data-banner{display:none;padding:5px 20px;font-size:.71rem;font-weight:600;border-bottom:1px solid;}
+
+/* ─── HEADER ─── */
+header{background:linear-gradient(90deg,#1d4ed8,#2563eb);padding:13px 24px;display:flex;align-items:center;gap:14px;box-shadow:0 2px 6px #1d4ed830;}
+header h1{font-size:1.1rem;font-weight:700;color:#fff;}
+header p{font-size:.72rem;color:#bfdbfe;margin-top:2px;}
+.hbadge{margin-left:auto;background:#ffffff20;border:1px solid #ffffff40;border-radius:6px;padding:3px 11px;font-size:.7rem;color:#fff;}
+
+/* ─── DASHBOARD TYPE LABEL ─── */
+.dash-type{background:#fff;border-bottom:1px solid #e2e8f0;padding:8px 20px;display:flex;align-items:center;gap:8px;}
+.dash-type-label{font-size:.68rem;font-weight:700;text-transform:uppercase;letter-spacing:.7px;color:#94a3b8;}
+.dash-type-name{font-size:.82rem;font-weight:700;color:#1d4ed8;display:flex;align-items:center;gap:5px;}
+
+/* ─── TABS ─── */
+.tabs{display:flex;background:#fff;border-bottom:2px solid #e2e8f0;}
+.tab{padding:9px 20px;cursor:pointer;font-size:.8rem;color:#94a3b8;border-bottom:2px solid transparent;margin-bottom:-2px;transition:all .15s;user-select:none;display:flex;align-items:center;gap:6px;}
+.tab:hover{color:#3b82f6;}
+.tab.active{color:#1d4ed8;border-bottom-color:#1d4ed8;font-weight:600;}
+
+/* ─── VIEWS ─── */
+.view{display:none;}
+.view.active{display:flex;flex-direction:column;}
+
+/* ════════════════════════════════
+   VIEW 1 – TARJETAS
+════════════════════════════════ */
+#v-cards{padding:18px;}
+.cards-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(215px,1fr));gap:10px;}
+.card{background:#fff;border:1px solid #e2e8f0;border-left:3px solid #94a3b8;border-radius:8px;padding:11px 12px;position:relative;transition:box-shadow .18s;}
+.card:hover{box-shadow:0 2px 12px #0001;}
+.card.dual{border-left-color:#f59e0b;}
+.card.no-attend{border-left-color:#f87171;}
+.card-name{font-size:.78rem;font-weight:700;color:#1e293b;margin-bottom:8px;padding-right:36px;}
+.dual-badge{position:absolute;top:8px;right:8px;font-size:.58rem;background:#fffbeb;border:1px solid #fde68a;color:#92400e;border-radius:5px;padding:1px 5px;}
+.chips{display:flex;flex-wrap:wrap;gap:3px;margin-bottom:8px;}
+.chip{font-size:.62rem;padding:2px 7px;border-radius:10px;background:#f8fafc;color:#64748b;border:1px solid #e2e8f0;}
+.chip.s2{background:#fff7ed;border-color:#fed7aa;color:#c2410c;}
+.chip.s3{background:#fef2f2;border-color:#fecaca;color:#dc2626;}
+.foot{display:flex;gap:4px;padding-top:7px;border-top:1px solid #f1f5f9;font-size:.61rem;flex-wrap:wrap;}
+.pill{padding:2px 7px;border-radius:7px;font-weight:600;}
+.pill.g{background:#f0fdf4;color:#16a34a;border:1px solid #bbf7d0;}
+.pill.r{background:#fef2f2;color:#dc2626;border:1px solid #fecaca;}
+.pill.n{background:#f8fafc;color:#94a3b8;border:1px solid #e2e8f0;}
+
+/* ════════════════════════════════
+   VIEW 2 – RED + SIDEBAR
+════════════════════════════════ */
+#v-net{height:calc(100vh - 168px);flex-direction:row !important;}
+#net-sidebar{width:230px;min-width:200px;background:#fff;border-right:1px solid #e2e8f0;display:flex;flex-direction:column;flex-shrink:0;}
+.sb-head{padding:10px 12px;border-bottom:1px solid #e2e8f0;}
+.sb-title{font-size:.68rem;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#94a3b8;margin-bottom:7px;}
+.sb-search{width:100%;padding:5px 9px;font-size:.75rem;border:1px solid #e2e8f0;border-radius:6px;outline:none;color:#1e293b;background:#f8fafc;}
+.sb-search:focus{border-color:#93c5fd;}
+.sb-filter{padding:6px 12px;border-bottom:1px solid #e2e8f0;display:flex;gap:5px;flex-wrap:wrap;}
+.sf{font-size:.61rem;padding:2px 8px;border-radius:10px;cursor:pointer;border:1px solid #e2e8f0;background:#f8fafc;color:#64748b;transition:all .12s;}
+.sf:hover,.sf.on{background:#dbeafe;border-color:#93c5fd;color:#1d4ed8;}
+.sb-list{overflow-y:auto;flex:1;}
+.sb-item{padding:7px 12px;cursor:pointer;border-bottom:1px solid #f1f5f9;display:flex;align-items:center;gap:7px;transition:background .12s;}
+.sb-item:hover{background:#f8fafc;}
+.sb-item.sel{background:#eff6ff;border-left:3px solid #2563eb;padding-left:9px;}
+.sb-dot{width:8px;height:8px;border-radius:1px;transform:rotate(45deg);flex-shrink:0;}
+.sb-name{font-size:.73rem;color:#334155;line-height:1.2;}
+.sb-cnt{font-size:.62rem;color:#94a3b8;margin-left:auto;white-space:nowrap;}
+.sb-item.dim{opacity:.35;}
+#net-area{flex:1;position:relative;overflow:hidden;background:#f8fafc;}
+#net-svg{width:100%;height:100%;}
+.net-tip{position:absolute;background:#fff;border:1px solid #cbd5e1;border-radius:7px;padding:9px 12px;pointer-events:none;font-size:.73rem;opacity:0;transition:opacity .12s;max-width:210px;z-index:50;box-shadow:0 4px 16px #0002;}
+.net-tip h4{color:#1d4ed8;margin-bottom:4px;font-size:.77rem;}
+.net-tip .tr{color:#64748b;margin-bottom:2px;}
+.net-tip .tr b{color:#1e293b;}
+.net-controls{position:absolute;top:10px;right:10px;display:flex;gap:5px;}
+.ncb{background:#fff;border:1px solid #e2e8f0;color:#475569;border-radius:6px;padding:4px 10px;cursor:pointer;font-size:.7rem;box-shadow:0 1px 2px #0001;}
+.ncb:hover{background:#f1f5f9;}
+.net-leg{position:absolute;bottom:12px;right:12px;background:#fff;border:1px solid #e2e8f0;border-radius:8px;padding:9px 12px;font-size:.66rem;}
+.net-leg h5{font-size:.62rem;text-transform:uppercase;letter-spacing:.5px;color:#94a3b8;margin-bottom:5px;}
+.lr{display:flex;align-items:center;gap:5px;margin-bottom:3px;color:#475569;}
+.ls{width:9px;height:9px;border-radius:2px;flex-shrink:0;}
+
+/* ════════════════════════════════
+   VIEW 3 – MATRIZ
+════════════════════════════════ */
+#v-matrix{padding:18px;}
+.mat-legend{display:flex;gap:12px;margin-bottom:10px;font-size:.68rem;flex-wrap:wrap;align-items:center;}
+.ml{display:flex;align-items:center;gap:4px;color:#64748b;}
+.md{width:11px;height:11px;border-radius:2px;}
+.mat-wrap{overflow:auto;max-height:calc(100vh - 240px);background:#fff;border:1px solid #e2e8f0;border-radius:8px;}
+table.mx{border-collapse:collapse;font-size:.63rem;}
+table.mx th,table.mx td{border:1px solid #f1f5f9;}
+table.mx .rh{writing-mode:vertical-lr;transform:rotate(180deg);padding:5px 3px;background:#f8fafc;font-size:.59rem;white-space:nowrap;text-align:center;min-width:22px;max-width:22px;position:sticky;top:0;z-index:2;}
+table.mx .ch{padding:5px 9px;background:#f8fafc;color:#475569;white-space:nowrap;font-size:.66rem;font-weight:600;position:sticky;left:0;z-index:3;min-width:150px;max-width:150px;border-right:2px solid #e2e8f0;}
+table.mx .mc{width:22px;min-width:22px;max-width:22px;height:22px;text-align:center;vertical-align:middle;}
+.mc.c1{background:#dbeafe;color:#1d4ed8;}
+.mc.c2{background:#fef9c3;color:#a16207;}
+.mc.c3{background:#fed7aa;color:#c2410c;}
+.mc.c4{background:#fecaca;color:#dc2626;}
+
+::-webkit-scrollbar{width:4px;height:4px;}
+::-webkit-scrollbar-track{background:#f1f5f9;}
+::-webkit-scrollbar-thumb{background:#cbd5e1;border-radius:2px;}
+</style>
+</head>
+<body>
+
+<!-- ── LOADING ── -->
+<div id="loading-overlay">
+  <div class="spin"></div>
+  <div class="spin-lbl">Cargando datos desde Google Sheets…</div>
+</div>
+
+<!-- ── DATA BANNER ── -->
+<div id="data-banner"></div>
+
+<header>
+  <div>
+    <h1>📊 4DX Independencia · Seguimiento de Implementación</h1>
+    <p>Intermedios — Seguimiento de Sesiones · Jun 2026</p>
+  </div>
+  <div class="hbadge" id="hbadge">Independencia · cargando…</div>
+  <span id="last-update" style="font-size:.55rem;color:#93c5fd;white-space:nowrap;"></span>
+</header>
+
+<div class="dash-type">
+  <span class="dash-type-label">Dashboard de equipos</span>
+  <span style="color:#cbd5e1">›</span>
+  <span class="dash-type-name">📌 Visualización de Equipos</span>
+</div>
+
+<div class="tabs">
+  <div class="tab active" onclick="switchTab('cards',this)">🗂 Tarjetas por Líder</div>
+  <div class="tab" onclick="switchTab('net',this)">🕸 Red de Interrelaciones</div>
+  <div class="tab" onclick="switchTab('matrix',this)">🔲 Matriz de Intersecciones</div>
+</div>
+
+<!-- ── VIEW 1: CARDS ── -->
+<div id="v-cards" class="view active">
+  <div class="cards-grid" id="cards-grid"></div>
+</div>
+
+<!-- ── VIEW 2: NETWORK ── -->
+<div id="v-net" class="view">
+  <div id="net-sidebar">
+    <div class="sb-head">
+      <div class="sb-title">Líderes · Independencia</div>
+      <input class="sb-search" id="sb-search" type="text" placeholder="Buscar líder…" oninput="filterSidebar()">
+    </div>
+    <div class="sb-filter">
+      <span class="sf on" onclick="setSbFilter('all',this)">Todos</span>
+      <span class="sf" onclick="setSbFilter('dual',this)">⚡ Doble rol</span>
+      <span class="sf" onclick="setSbFilter('shared',this)">🔗 Compartidos</span>
+      <span class="sf" onclick="setSbFilter('ok',this)">✓ Agendado</span>
+    </div>
+    <div class="sb-list" id="sb-list"></div>
+  </div>
+  <div id="net-area">
+    <svg id="net-svg"></svg>
+    <div class="net-controls">
+      <button class="ncb" onclick="netReset()">↺ Reset</button>
+      <button class="ncb" onclick="netLabels()">Aa</button>
+    </div>
+    <div class="net-tip" id="net-tip"></div>
+    <div class="net-leg">
+      <h5>Leyenda</h5>
+      <div class="lr"><div class="ls" style="background:#475569;clip-path:polygon(50% 0%,100% 50%,50% 100%,0% 50%)"></div>Líder intermedio</div>
+      <div class="lr"><div class="ls" style="background:#475569;clip-path:polygon(50% 0%,100% 50%,50% 100%,0% 50%);outline:2px solid #f59e0b"></div>Doble rol ⚡</div>
+      <div class="lr"><div class="ls" style="background:#4ade80;border-radius:50%"></div>Miembro único</div>
+      <div class="lr"><div class="ls" style="background:#f59e0b;border-radius:50%"></div>Compartido ×2</div>
+      <div class="lr"><div class="ls" style="background:#f97316;border-radius:50%"></div>Compartido ×3+</div>
+      <div style="margin-top:5px;color:#94a3b8;font-size:.61rem">Click en líder → ver sus conexiones<br>Scroll → zoom · Drag → mover</div>
+    </div>
+  </div>
+</div>
+
+<!-- ── VIEW 3: MATRIX ── -->
+<div id="v-matrix" class="view">
+  <div class="mat-legend">
+    <div class="ml"><div class="md" style="background:#dbeafe"></div>1 equipo</div>
+    <div class="ml"><div class="md" style="background:#fef9c3"></div>2 equipos</div>
+    <div class="ml"><div class="md" style="background:#fed7aa"></div>3 equipos</div>
+    <div class="ml"><div class="md" style="background:#fecaca"></div>4+ equipos</div>
+    <span style="color:#94a3b8;font-size:.65rem;margin-left:6px">Solo se muestran los miembros presentes en 2 o más equipos</span>
+  </div>
+  <div class="mat-wrap"><table class="mx" id="mx-tbl"></table></div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
+<script>
+// ════════════ CONFIG ════════════
+const SHEETS_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vSI4G-2KDHTK9i7ZOLNFivP9JttrtKao9A02GEAHxociatw_sb0hUvU-eGH2CjiBQ/pub?gid=1891876114&single=true&output=csv';
+// Proxy CORS: necesario al abrir como archivo local. En Netlify usa URL directa.
+const FETCH_URL = window.location.protocol === 'file:'
+  ? 'https://api.allorigins.win/raw?url=' + encodeURIComponent(SHEETS_URL)
+  : SHEETS_URL;
+
+
+// ════════════ GLOBALS ════════════
+let LEADERS = [], ACTIVE_LEADERS = [], memberCount = {};
+let selId = null, showLbl = true, _sbFilterVal = 'all', _sbSearch = '';
+const LCOLOR = '#475569';
+
+// ════════════ CSV PARSER ════════════
+function parseCSV(text) {
+  const rows = [];
+  let row = [], field = '', inQuote = false;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (inQuote) {
+      if (c === '"') {
+        if (text[i+1] === '"') { field += '"'; i++; }
+        else inQuote = false;
+      } else { field += c; }
+    } else {
+      if (c === '"') { inQuote = true; }
+      else if (c === ',') { row.push(field.trim()); field = ''; }
+      else if (c === '\n') {
+        row.push(field.trim()); rows.push(row); row = []; field = '';
+      } else if (c !== '\r') { field += c; }
+    }
+  }
+  if (row.length > 0 || field) { row.push(field.trim()); rows.push(row); }
+  return rows;
+}
+
+function normalizeAtt(val) {
+  if (!val) return '';
+  const v = val.trim().toUpperCase().replace('Í','I').replace('Ì','I');
+  if (v.startsWith('SI') || v === 'S' || v === 'Y') return 'SI';
+  if (v.startsWith('NO') || v === 'N') return 'NO';
+  return '';
+}
+
+function makeShort(full) {
+  const p = full.split(/\s+/);
+  if (p.length >= 4) return p[0] + ' ' + (p[2]||'').charAt(0) + '.';
+  if (p.length === 3) return p[0] + ' ' + (p[1]||'').charAt(0) + '.';
+  return p[0] || full;
+}
+
+function buildLeadersFromCSV(rows) {
+  // Detectar fila de headers automáticamente
+  let headerIdx = -1, headers = [];
+  for (let i = 0; i < Math.min(rows.length, 6); i++) {
+    if (rows[i].some(c => c.toLowerCase().includes('colaborador'))) {
+      headerIdx = i;
+      headers = rows[i].map(h => h.toLowerCase().trim());
+      break;
+    }
+  }
+  if (headerIdx === -1) { console.warn('Headers no encontrados'); return []; }
+
+  // Detectar columnas por nombre
+  const fi = (terms) => headers.findIndex(h => terms.some(t => h.includes(t)));
+  const C = {
+    col:    fi(['colaborador']),
+    planta: fi(['planta']),
+    a1:     fi(['asistencia s1','asistencia s 1']),
+    a2:     fi(['asistencia s2','asistencia s 2']),
+    equipo: fi(['equipo']),
+    grupos: fi(['grupos']),
+    ag:     fi(['agendado']),
+  };
+  console.log('Columnas detectadas:', C);
+
+  const data = rows.slice(headerIdx + 1).filter(r => {
+    if(r.length <= 3 || !(r[C.col]||'').trim()) return false;
+    if(C.planta >= 0){
+      const p = (r[C.planta]||'').normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase().trim();
+      if(!p.includes('independencia')) return false;
+    }
+    return true;
+  });
+
+  const withTeam = data.filter(r => {
+    const eq = (r[C.equipo]||'').trim().toUpperCase().replace(/Í/g,'I').replace(/Ì/g,'I');
+    const gr = (r[C.grupos]||'').trim();
+    return eq === 'SI' && gr && gr !== '-';
+  });
+
+  const leaders = withTeam.map(r => {
+    const full = (r[C.col]||'').trim();
+    const members = (r[C.grupos]||'')
+      .split(/[,\n]+/)
+      .map(m => m.replace(/\*/g,'').trim())
+      .filter(m => m && m !== '-' && m.length > 1);
+
+    return {
+      id: full,
+      short: makeShort(full),
+      full,
+      a1: normalizeAtt(r[C.a1]),
+      a2: normalizeAtt(r[C.a2]),
+      ag: normalizeAtt(r[C.ag]),
+      members,
+      dual: false,
+      dualIn: ''
+    };
+  });
+
+  // Detect dual roles: leader whose last name appears in another leader's team
+  leaders.forEach(leader => {
+    const parts = leader.full.split(/\s+/);
+    // apellido1: word[2] if 4+ words (double first name), else word[1]
+    const apellido = (parts.length >= 4 ? parts[2] : parts[1] || '').toLowerCase();
+    const firstName = (parts[0]||'').toLowerCase();
+
+    leaders.forEach(other => {
+      if (other.id === leader.id || leader.dual) return;
+      const inOther = other.members.some(m => {
+        const ml = m.toLowerCase().replace(/\s+/g,' ');
+        return (apellido.length > 3 && ml.includes(apellido)) ||
+               (firstName.length > 4 && ml.startsWith(firstName));
+      });
+      if (inOther) {
+        leader.dual = true;
+        leader.dualIn = other.full;
+      }
+    });
+  });
+
+  return leaders;
+}
+
+// ════════════ DATA BANNER ════════════
+function showDataBanner(source, extra) {
+  const b = document.getElementById('data-banner');
+  if (source === 'sheets') {
+    b.textContent = '✓ Datos desde Google Sheets · ' + (extra||'');
+    b.style.cssText = 'display:block;background:#f0fdf4;color:#16a34a;border-color:#bbf7d0;padding:5px 20px;font-size:.71rem;font-weight:600;border-bottom:1px solid;';
+  } else {
+    b.textContent = '⚠ Usando datos de respaldo · ' + (extra||'');
+    b.style.cssText = 'display:block;background:#fffbeb;color:#92400e;border-color:#fde68a;padding:5px 20px;font-size:.71rem;font-weight:600;border-bottom:1px solid;';
+  }
+  // No ocultar — visible siempre
+}
+
+// ════════════ INIT ════════════
+async function init() {
+  let source = 'fallback';
+  let debugMsg = '';
+  try {
+    console.log('Fetching:', FETCH_URL);
+    const res = await fetch(FETCH_URL, { cache: 'no-cache' });
+    const text = await res.text();
+    console.log('CSV length:', text.length, '| Preview:', text.slice(0,120));
+    if (text && text.length > 200) {
+      const rows = parseCSV(text);
+      console.log('Rows parsed:', rows.length);
+      const built = buildLeadersFromCSV(rows);
+      console.log('Leaders built:', built.length, built.map(l=>l.short));
+      LEADERS = built;
+      source = 'sheets';
+      debugMsg = built.length + ' líderes · ' + new Date().toLocaleTimeString();
+    } else {
+      throw new Error('Respuesta vacía (' + text.length + ' chars)');
+    }
+  } catch(e) {
+    console.warn('Sheets fetch failed:', e.message);
+    debugMsg = e.message;
+    document.getElementById('loading-overlay').innerHTML =
+      `<div style="text-align:center;color:#dc2626;font-size:.85rem;padding:20px">
+        <div style="font-size:2rem;margin-bottom:10px">⚠</div>
+        <b>No se pudo cargar Google Sheets</b><br>
+        <span style="color:#64748b;font-size:.75rem">${e.message}</span><br><br>
+        <button onclick="location.reload()" style="padding:6px 16px;background:#2563eb;color:#fff;border:none;border-radius:6px;cursor:pointer">Reintentar</button>
+      </div>`;
+    return;
+  }
+
+  ACTIVE_LEADERS = LEADERS.filter(l => !l.empty && l.members.length > 0);
+
+  memberCount = {};
+  ACTIVE_LEADERS.forEach(l => l.members.forEach(m => {
+    const k = m.replace(/\*/g,'').trim();
+    memberCount[k] = (memberCount[k]||0) + 1;
+  }));
+
+  document.getElementById('hbadge').textContent =
+    `Independencia · ${ACTIVE_LEADERS.length} líderes con equipo`;
+
+  renderCards();
+
+  document.getElementById('loading-overlay').style.display = 'none';
+  showDataBanner(source, debugMsg);
+
+  // Marcar hora de carga
+  (()=>{ const el=document.getElementById('last-update'); if(el) el.textContent='⟳ '+new Date().toLocaleTimeString('es-PE',{hour:'2-digit',minute:'2-digit',second:'2-digit'}); })();
+
+  // Auto-refresh cada 30 segundos
+  setInterval(async ()=>{
+    try{
+      const r2  = await fetch(FETCH_URL,{cache:'no-cache'});
+      const tx2 = await r2.text();
+      if(!tx2||tx2.length<200) return;
+      const built = buildLeadersFromCSV(parseCSV(tx2));
+      if(JSON.stringify(built)===JSON.stringify(LEADERS)) return;
+      LEADERS = built;
+      ACTIVE_LEADERS = LEADERS.filter(l=>!l.empty&&l.members.length>0);
+      memberCount={};
+      ACTIVE_LEADERS.forEach(l=>l.members.forEach(m=>{
+        const k=m.replace(/\*/g,'').trim();
+        memberCount[k]=(memberCount[k]||0)+1;
+      }));
+      document.getElementById('hbadge').textContent=
+        `Independencia · ${ACTIVE_LEADERS.length} líderes con equipo`;
+      // Re-render vista activa
+      const activeId = document.querySelector('.view.active')?.id?.replace('v-','');
+      if(activeId==='cards'||!activeId) renderCards();
+      if(activeId==='net'){ window._netBuilt=false; buildNetwork(); window._netBuilt=true; }
+      if(activeId==='matrix'){ window._matBuilt=false; buildMatrix(); window._matBuilt=true; }
+      const el=document.getElementById('last-update');
+      if(el) el.textContent='⟳ '+new Date().toLocaleTimeString('es-PE',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
+    }catch(e){}
+  },30000);
+}
+
+// ════════════ TABS ════════════
+function switchTab(id, el) {
+  document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.getElementById('v-'+id).classList.add('active');
+  el.classList.add('active');
+  if (id === 'net' && !window._netBuilt) { buildNetwork(); window._netBuilt = true; }
+  if (id === 'matrix' && !window._matBuilt) { buildMatrix(); window._matBuilt = true; }
+}
+
+// ════════════ VIEW 1: CARDS ════════════
+function renderCards() {
+  const grid = document.getElementById('cards-grid');
+  grid.innerHTML = '';
+  ACTIVE_LEADERS.forEach(l => {
+    const div = document.createElement('div');
+    let cls = 'card';
+    if (l.dual) cls += ' dual';
+    else if (l.a1 === 'NO') cls += ' no-attend';
+    div.className = cls;
+    if (l.dual) div.innerHTML += '<div class="dual-badge">⚡ Doble rol</div>';
+    div.innerHTML += `<div class="card-name">${l.full.split(' ').slice(0,3).join(' ')}</div>`;
+    let h = '<div class="chips">';
+    l.members.forEach(m => {
+      const k = m.replace(/\*/g,'').trim();
+      const c = memberCount[k] || 1;
+      h += `<span class="chip${c>=3?' s3':c>=2?' s2':''}">${k}${m.includes('*')?' ⚡':''}</span>`;
+    });
+    h += '</div>';
+    div.innerHTML += h;
+    const ac = l.a1==='SI'?'g':l.a1==='NO'?'r':'n';
+    const a2c = l.a2==='SI'?'g':l.a2==='NO'?'r':'n';
+    const gc = l.ag==='SI'?'g':l.ag==='NO'?'r':'n';
+    const s2pill = l.a2 ? `<span class="pill ${a2c}">S2 ${l.a2}</span>` : '';
+    div.innerHTML += `<div class="foot">
+      <span class="pill ${ac}">S1 ${l.a1||'—'}</span>
+      ${s2pill}
+      <span class="pill ${gc}">Ag. ${l.ag||'—'}</span>
+      <span class="pill n">${l.members.length}👥</span>
+    </div>`;
+    grid.appendChild(div);
+  });
+}
+
+// ════════════ VIEW 2: NETWORK ════════════
+function buildNetwork() {
+  const area = document.getElementById('net-area');
+  const W = area.clientWidth, H = area.clientHeight;
+  const cx = W/2, cy = H/2;
+  const N = ACTIVE_LEADERS.length;
+  const R = Math.min(W,H) * 0.31;
+
+  const svg = d3.select('#net-svg').attr('width',W).attr('height',H);
+  svg.append('rect').attr('width',W).attr('height',H).attr('fill','#f8fafc');
+  const g = svg.append('g');
+
+  const zoom = d3.zoom().scaleExtent([.2,4]).on('zoom', e => g.attr('transform', e.transform));
+  svg.call(zoom).on('dblclick.zoom', null);
+  svg.on('click', function(e) {
+    if (e.target === this || e.target.tagName === 'rect') clearSel();
+  });
+
+  const nodeMap = {}, nodes = [], links = [];
+
+  ACTIVE_LEADERS.forEach((l, i) => {
+    const ang = (2*Math.PI*i/N) - Math.PI/2;
+    nodeMap[l.id] = {
+      id: l.id, full: l.full, short: l.short, type: 'leader',
+      a1: l.a1, a2: l.a2, ag: l.ag, dual: l.dual||false, dualIn: l.dualIn,
+      mCount: l.members.length, size: 12,
+      x: cx + R*Math.cos(ang), y: cy + R*Math.sin(ang)
+    };
+    nodes.push(nodeMap[l.id]);
+  });
+
+  const mTeams = {};
+  ACTIVE_LEADERS.forEach(l => l.members.forEach(m => {
+    const k = m.replace(/\*/g,'').trim();
+    if (!mTeams[k]) mTeams[k] = [];
+    mTeams[k].push(l.id);
+  }));
+
+  Object.entries(mTeams).forEach(([m, teams]) => {
+    const cnt = teams.length;
+    const col = cnt>=4?'#ef4444':cnt>=3?'#f97316':cnt>=2?'#f59e0b':'#4ade80';
+    const fl = nodeMap[teams[0]];
+    nodeMap['m_'+m] = {
+      id: 'm_'+m, label: m, type: 'member', col, size: cnt>1?7:5,
+      teamCount: cnt, teams,
+      x: fl?(fl.x+(Math.random()-.5)*45):cx,
+      y: fl?(fl.y+(Math.random()-.5)*45):cy
+    };
+    nodes.push(nodeMap['m_'+m]);
+  });
+
+  ACTIVE_LEADERS.forEach(l => l.members.forEach(m => {
+    const k = 'm_'+m.replace(/\*/g,'').trim();
+    if (nodeMap[k]) links.push({ source:l.id, target:k, shared:nodeMap[k].teamCount>1 });
+  }));
+
+  const sim = d3.forceSimulation(nodes)
+    .force('link', d3.forceLink(links).id(d=>d.id).distance(d=>d.shared?36:28).strength(d=>d.shared?.45:.75))
+    .force('charge', d3.forceManyBody().strength(d=>d.type==='leader'?-110:-28))
+    .force('center', d3.forceCenter(cx,cy).strength(.05))
+    .force('radial', d3.forceRadial(d=>d.type==='leader'?R:0,cx,cy).strength(d=>d.type==='leader'?.28:0))
+    .force('collide', d3.forceCollide(d=>d.size+6))
+    .alphaDecay(.022);
+
+  const linkSel = g.append('g').selectAll('line').data(links).join('line')
+    .style('stroke','#94a3b8').style('stroke-opacity',.28)
+    .style('stroke-width', d=>d.shared?2:1.2)
+    .style('stroke-dasharray', d=>d.shared?'5,3':'none');
+
+  const nodeSel = g.append('g').selectAll('.nd').data(nodes).join('g').attr('class','nd')
+    .style('cursor','pointer')
+    .call(d3.drag()
+      .on('start',(e,d)=>{if(!e.active)sim.alphaTarget(.3).restart();d.fx=d.x;d.fy=d.y;})
+      .on('drag',(e,d)=>{d.fx=e.x;d.fy=e.y;})
+      .on('end',(e,d)=>{if(!e.active)sim.alphaTarget(0);d.fx=null;d.fy=null;}))
+    .on('click',(e,d)=>{e.stopPropagation();doSelect(d.type==='leader'?d.id:null,null,linkSel,nodeSel);})
+    .on('mouseover',(e,d)=>showTip(e,d))
+    .on('mousemove',e=>moveTip(e))
+    .on('mouseout',()=>hideTip());
+
+  nodeSel.filter(d=>d.type==='leader').append('polygon')
+    .attr('points', d=>{const r=d.size+2;return`0,${-r} ${r},0 0,${r} ${-r},0`;})
+    .style('fill',LCOLOR).style('fill-opacity',.88)
+    .style('stroke', d=>d.dual?'#f59e0b':'#cbd5e1')
+    .style('stroke-width', d=>d.dual?2.5:1.5)
+    .style('filter','drop-shadow(0 1px 3px #0002)');
+
+  nodeSel.filter(d=>d.type==='member').append('circle')
+    .attr('r', d=>d.size)
+    .style('fill', d=>d.col).style('fill-opacity',.78)
+    .style('stroke', d=>d.col).style('stroke-width',.8).style('stroke-opacity',.5);
+
+  nodeSel.filter(d=>d.type==='leader').append('text')
+    .attr('class','nlbl').attr('dy',d=>d.size+12).attr('text-anchor','middle')
+    .style('font-size','8.5px').style('font-weight','700').style('fill','#1e293b').style('pointer-events','none')
+    .text(d=>d.short);
+
+  nodeSel.filter(d=>d.type==='member'&&d.teamCount>1).append('text')
+    .attr('class','nlbl').attr('dy',d=>d.size+10).attr('text-anchor','middle')
+    .style('font-size','6.5px').style('fill','#64748b').style('pointer-events','none')
+    .text(d=>d.label.split(' ')[0]);
+
+  sim.on('tick', () => {
+    linkSel.attr('x1',d=>d.source.x).attr('y1',d=>d.source.y)
+            .attr('x2',d=>d.target.x).attr('y2',d=>d.target.y);
+    nodeSel.attr('transform', d=>`translate(${d.x},${d.y})`);
+  });
+
+  window._net = {sim,linkSel,nodeSel,nodes,links,zoom,svg,g,W,H};
+  setTimeout(()=>svg.transition().duration(700).call(zoom.transform,
+    d3.zoomIdentity.translate(W*.03,H*.03).scale(.92)), 2200);
+
+  buildSidebar(nodeSel, linkSel);
+}
+
+// ── SIDEBAR ──
+function buildSidebar(nodeSel, linkSel) {
+  const list = document.getElementById('sb-list');
+  list.innerHTML = '';
+  ACTIVE_LEADERS.forEach(l => {
+    const div = document.createElement('div');
+    div.className = 'sb-item';
+    div.dataset.id = l.id;
+    div.dataset.dual = l.dual ? '1' : '0';
+    div.dataset.shared = l.members.some(m=>memberCount[m.replace(/\*/g,'').trim()]>1) ? '1' : '0';
+    div.dataset.ag = l.ag === 'SI' ? '1' : '0';
+    div.innerHTML = `
+      <div class="sb-dot" style="background:${LCOLOR};${l.dual?'border:2px solid #f59e0b;':''}"></div>
+      <div class="sb-name">${l.full.split(' ').slice(0,3).join(' ')}</div>
+      <div class="sb-cnt">${l.members.length}👥</div>`;
+    div.addEventListener('click', () => doSelect(l.id, null, linkSel, nodeSel));
+    list.appendChild(div);
+  });
+}
+
+function setSbFilter(f, el) {
+  _sbFilterVal = f;
+  document.querySelectorAll('.sf').forEach(x=>x.classList.remove('on'));
+  el.classList.add('on');
+  applySbFilter();
+}
+function filterSidebar() {
+  _sbSearch = document.getElementById('sb-search').value.toLowerCase();
+  applySbFilter();
+}
+function applySbFilter() {
+  document.querySelectorAll('.sb-item').forEach(el => {
+    const name = el.querySelector('.sb-name').textContent.toLowerCase();
+    const matchSearch = !_sbSearch || name.includes(_sbSearch);
+    let matchFilter = true;
+    if (_sbFilterVal==='dual') matchFilter = el.dataset.dual === '1';
+    else if (_sbFilterVal==='shared') matchFilter = el.dataset.shared === '1';
+    else if (_sbFilterVal==='ok') matchFilter = el.dataset.ag === '1';
+    el.style.display = (matchSearch && matchFilter) ? '' : 'none';
+  });
+}
+
+function doSelect(lid, _d, linkSel, nodeSel) {
+  if (!lid) { clearSel(); return; }
+  if (selId === lid) { clearSel(); return; }
+  selId = lid;
+  const connected = new Set([lid]);
+  if (window._net) {
+    window._net.links.forEach(lk => {
+      const s = typeof lk.source==='object'?lk.source.id:lk.source;
+      const t = typeof lk.target==='object'?lk.target.id:lk.target;
+      if (s===lid||t===lid) { connected.add(s); connected.add(t); }
+    });
+  }
+  _applyHighlight(connected, linkSel||window._net?.linkSel, nodeSel||window._net?.nodeSel, lid);
+}
+
+function _applyHighlight(connected, linkSel, nodeSel, lid) {
+  linkSel.style('stroke-opacity', lk => {
+    const s = typeof lk.source==='object'?lk.source.id:lk.source;
+    const t = typeof lk.target==='object'?lk.target.id:lk.target;
+    return connected.has(s)&&connected.has(t) ? .85 : .04;
+  }).style('stroke-width', lk => {
+    const s = typeof lk.source==='object'?lk.source.id:lk.source;
+    const t = typeof lk.target==='object'?lk.target.id:lk.target;
+    return (connected.has(s)&&connected.has(t)) ? (lk.shared?3:2) : 1;
+  });
+  nodeSel.style('opacity', nd => connected.has(nd.id) ? 1 : .1);
+  document.querySelectorAll('.sb-item').forEach(el => {
+    el.classList.toggle('sel', el.dataset.id === lid);
+    el.classList.toggle('dim', lid && el.dataset.id !== lid);
+  });
+}
+
+function clearSel() {
+  selId = null;
+  if (!window._net) return;
+  window._net.linkSel.style('stroke-opacity',.3).style('stroke-width',d=>d.shared?2:1.2);
+  window._net.nodeSel.style('opacity',1);
+  document.querySelectorAll('.sb-item').forEach(el=>el.classList.remove('sel','dim'));
+}
+function netReset() {
+  clearSel();
+  if (!window._net) return;
+  const {W,H,svg,zoom} = window._net;
+  svg.transition().duration(500).call(zoom.transform, d3.zoomIdentity.translate(W*.03,H*.03).scale(.93));
+}
+function netLabels() {
+  showLbl = !showLbl;
+  d3.selectAll('.nlbl').style('display', showLbl ? null : 'none');
+}
+
+// ── TOOLTIP ──
+const tip = document.getElementById('net-tip');
+function showTip(e,d) {
+  let h = '';
+  if (d.type === 'leader') {
+    h = `<h4>◆ ${d.full}</h4>
+    <div class="tr">S1: <b>${d.a1||'—'}</b>${d.a2?` &nbsp; S2: <b>${d.a2}</b>`:''} &nbsp; Ag: <b>${d.ag||'—'}</b></div>
+    <div class="tr">Equipo: <b>${d.mCount} miembros</b></div>
+    ${d.dual?`<div class="tr" style="color:#d97706;margin-top:3px">⚡ Doble rol — en equipo de ${d.dualIn.split(' ').slice(0,2).join(' ')}</div>`:''}`;
+  } else {
+    h = `<h4>● ${d.label}</h4>
+    <div class="tr">Aparece en <b style="color:${d.col}">${d.teamCount} equipo(s)</b></div>
+    <div class="tr">Líderes: <b>${(d.teams||[]).map(t=>t.split(' ')[0]).join(', ')}</b></div>`;
+  }
+  tip.innerHTML = h; tip.style.opacity = 1; moveTip(e);
+}
+function moveTip(e) {
+  const r = document.getElementById('net-area').getBoundingClientRect();
+  let x = e.clientX-r.left+14, y = e.clientY-r.top-10;
+  if (x+220 > r.width) x -= 228;
+  tip.style.left = x+'px'; tip.style.top = y+'px';
+}
+function hideTip() { tip.style.opacity = 0; }
+
+// ════════════ VIEW 3: MATRIX ════════════
+function buildMatrix() {
+  const shared = Object.entries(memberCount)
+    .filter(([,c])=>c>=2).sort((a,b)=>b[1]-a[1]).map(([m])=>m);
+  const tbl = document.getElementById('mx-tbl');
+  const thead = tbl.createTHead(); const hr = thead.insertRow();
+  const corner = document.createElement('th');
+  corner.className = 'rh ch';
+  corner.style.writingMode = 'horizontal-tb';
+  corner.style.transform = 'none';
+  corner.style.fontSize = '.61rem';
+  corner.style.color = '#94a3b8';
+  corner.textContent = 'Líder ↓ / Miembro →';
+  hr.appendChild(corner);
+  shared.forEach(m => {
+    const th = document.createElement('th'); th.className = 'rh'; th.title = m;
+    const c = memberCount[m];
+    th.style.color = c>=4?'#dc2626':c>=3?'#c2410c':c>=2?'#a16207':'#64748b';
+    th.textContent = m.split(' ')[0]; hr.appendChild(th);
+  });
+  const tbody = tbl.createTBody();
+  ACTIVE_LEADERS.forEach(l => {
+    const set = new Set(l.members.map(m=>m.replace(/\*/g,'').trim()));
+    const row = tbody.insertRow();
+    const th = document.createElement('th'); th.className = 'ch';
+    th.style.borderLeft = '3px solid #94a3b8'; th.style.color = '#475569';
+    th.textContent = l.short; row.appendChild(th);
+    shared.forEach(m => {
+      const td = row.insertCell(); td.className = 'mc';
+      if (set.has(m)) {
+        const c = memberCount[m];
+        td.className += ' '+(c>=4?'c4':c>=3?'c3':c>=2?'c2':'c1');
+        td.textContent = '✓'; td.title = `${l.short} → ${m} (${c} equipos)`;
+      }
+    });
+  });
+}
+
+// ════════════ ARRANCAR ════════════
+init();
+</script>
+</body>
+</html>

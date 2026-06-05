@@ -1,0 +1,763 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>4DX · Tiempo de Inversión · Ate</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;}
+body{background:#f1f5f9;color:#1e293b;font-family:'Segoe UI',Arial,sans-serif;min-height:100vh;}
+
+/* ─── LOADING ─── */
+#loading{position:fixed;inset:0;background:#f1f5f9;z-index:999;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;}
+.spin{width:28px;height:28px;border:3px solid #e2e8f0;border-top-color:#2563eb;border-radius:50%;animation:rot .7s linear infinite;}
+@keyframes rot{to{transform:rotate(360deg)}}
+.spin-lbl{font-size:.75rem;color:#64748b;}
+
+/* ─── HEADER ─── */
+header{background:linear-gradient(90deg,#1e3a8a,#1d4ed8,#2563eb);padding:11px 24px;display:flex;align-items:center;gap:12px;box-shadow:0 2px 6px #1d4ed830;}
+.back{display:flex;align-items:center;gap:5px;color:#bfdbfe;font-size:.7rem;font-weight:600;text-decoration:none;padding:3px 9px;border-radius:6px;border:1px solid #ffffff25;background:#ffffff10;transition:background .15s;flex-shrink:0;}
+.back:hover{background:#ffffff20;}
+.hdiv{width:1px;height:20px;background:#ffffff25;}
+.htitles{flex:1;}
+.hplant{font-size:.58rem;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:#93c5fd;}
+.htitle{font-size:.95rem;font-weight:700;color:#fff;}
+.hbadge{background:#ffffff20;border:1px solid #ffffff40;border-radius:6px;padding:3px 10px;font-size:.67rem;color:#fff;white-space:nowrap;}
+
+/* ─── KPI STRIP ─── */
+.kpi-row{background:#fff;border-bottom:2px solid #e2e8f0;display:flex;flex-wrap:wrap;}
+.kpi{flex:1;min-width:120px;padding:12px 16px;text-align:center;border-right:1px solid #f1f5f9;}
+.kpi:last-child{border-right:none;}
+.kv{font-size:1.4rem;font-weight:800;line-height:1;}
+.kl{font-size:.59rem;color:#94a3b8;text-transform:uppercase;letter-spacing:.4px;margin-top:3px;}
+.kv.blue{color:#2563eb;} .kv.green{color:#16a34a;} .kv.red{color:#dc2626;} .kv.amber{color:#d97706;}
+
+/* ─── CONTROLES ─── */
+.ctrl-bar{background:#fff;border-bottom:1px solid #e2e8f0;padding:8px 20px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
+.ctrl-label{font-size:.65rem;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:#94a3b8;white-space:nowrap;}
+.ctrl-sep{width:1px;height:20px;background:#e2e8f0;flex-shrink:0;}
+.view-tabs{display:flex;gap:4px;}
+.vtab{font-size:.7rem;padding:4px 12px;border-radius:6px;cursor:pointer;border:1px solid #e2e8f0;background:#f8fafc;color:#64748b;transition:all .12s;font-weight:600;user-select:none;}
+.vtab.on{background:#eff6ff;border-color:#93c5fd;color:#1d4ed8;}
+.vtab:hover:not(.on){background:#f1f5f9;}
+.leader-sel{font-size:.72rem;border:1px solid #e2e8f0;border-radius:6px;padding:4px 8px;color:#1e293b;background:#fff;cursor:pointer;outline:none;max-width:200px;}
+.leader-sel:focus{border-color:#93c5fd;}
+
+/* ─── CONTENT WRAPPER ─── */
+.content{max-width:900px;margin:0 auto;width:100%;padding:24px 24px 0;}
+
+/* ─── SECTION BLOCK ─── */
+.sec-block{background:#fff;border:1px solid #e2e8f0;border-radius:14px;overflow:hidden;margin-bottom:20px;}
+.sec-block-hd{padding:14px 20px 0;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;}
+.sec-block-title{font-size:.8rem;font-weight:700;color:#1e293b;}
+.meta-badge{font-size:.62rem;background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe;border-radius:6px;padding:2px 8px;font-weight:700;}
+.sec-block-body{padding:16px 20px 20px;}
+
+/* ─── CHART ─── */
+.chart-wrap{width:100%;overflow:hidden;}
+#bar-canvas{display:block;}
+
+/* ─── HEATMAP ─── */
+.hm-scroll{overflow-x:auto;}
+.hm-table{border-collapse:collapse;width:100%;min-width:400px;}
+.hm-table th,.hm-table td{text-align:center;vertical-align:middle;}
+.hm-name-head{text-align:left;padding:8px 12px;font-size:.62rem;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#94a3b8;background:#f8fafc;border-bottom:2px solid #e2e8f0;min-width:130px;white-space:nowrap;}
+.hm-col-head{padding:6px 10px;font-size:.67rem;background:#f8fafc;border-bottom:2px solid #e2e8f0;min-width:80px;border-left:1px solid #f1f5f9;}
+.hm-q-label{font-weight:800;color:#1e293b;font-size:.7rem;}
+.hm-q-sess{font-size:.55rem;color:#94a3b8;font-weight:600;margin-top:1px;}
+.hm-name{text-align:left;padding:7px 12px;border-bottom:1px solid #f8fafc;font-size:.68rem;}
+.hm-name-text{font-weight:600;color:#1e293b;}
+.hm-cell{padding:7px 10px;border-bottom:1px solid #f8fafc;border-left:1px solid #f1f5f9;font-size:.72rem;font-weight:700;border-radius:4px;white-space:nowrap;}
+.hm-table tbody tr:hover .hm-name{background:#f8fafc;}
+.hm-table tbody tr:hover .hm-cell{filter:brightness(.97);}
+
+/* ─── NIVEL BADGES ─── */
+.nivel-badge{font-size:.52rem;padding:1px 5px;border-radius:5px;font-weight:700;margin-left:5px;border:1px solid;vertical-align:middle;}
+.nb-int{background:#eff6ff;color:#1d4ed8;border-color:#bfdbfe;}
+.nb-nvo{background:#f0fdf4;color:#16a34a;border-color:#bbf7d0;}
+
+/* ─── LEGEND ─── */
+.perf-legend{display:flex;gap:8px;flex-wrap:wrap;align-items:center;}
+.pleg{display:flex;align-items:center;gap:4px;font-size:.6rem;font-weight:600;}
+.pleg-dot{width:9px;height:9px;border-radius:3px;flex-shrink:0;}
+
+/* ─── INDIVIDUAL VIEW ─── */
+.leader-hero{padding:18px 20px 14px;border-bottom:1px solid #e2e8f0;display:flex;align-items:center;gap:10px;}
+.lh-name{font-size:1rem;font-weight:800;color:#1e293b;}
+.q-cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:14px;padding:20px;}
+.q-card{border-radius:12px;border:1px solid #e2e8f0;overflow:hidden;background:#fff;}
+.qc-top{padding:14px 16px 10px;}
+.qc-label{font-size:.75rem;font-weight:800;color:#1e293b;margin-bottom:1px;}
+.qc-sessions{font-size:.58rem;color:#94a3b8;font-weight:600;margin-bottom:6px;}
+.qc-hours{font-size:1.4rem;font-weight:900;line-height:1;}
+.qc-status{font-size:.6rem;font-weight:700;margin-top:3px;}
+.qc-bar-wrap{padding:8px 14px 12px;border-top:1px solid #f1f5f9;}
+.qc-bar-track{width:100%;height:8px;background:#f1f5f9;border-radius:4px;position:relative;overflow:hidden;}
+.qc-bar-fill{height:100%;border-radius:4px;transition:width .4s;}
+.qc-bar-labels{display:flex;justify-content:space-between;margin-top:4px;}
+
+/* ─── QUINCENA CHIPS ─── */
+.sess-chip{font-size:.63rem;padding:3px 9px;border-radius:6px;cursor:pointer;border:1px solid #e2e8f0;background:#f8fafc;color:#64748b;font-weight:700;user-select:none;transition:all .12s;}
+.sess-chip.on{background:#1d4ed8;border-color:#1d4ed8;color:#fff;}
+.sess-chip:hover:not(.on){background:#f1f5f9;}
+.hm-col-head.dim,.hm-cell.dim{opacity:.2;pointer-events:none;}
+
+/* ─── EMPTY STATE ─── */
+.empty-state{padding:40px;text-align:center;color:#94a3b8;font-size:.78rem;}
+
+/* ─── FOOTER ─── */
+footer{margin-top:36px;padding:20px;text-align:center;font-size:.62rem;color:#94a3b8;border-top:1px solid #e2e8f0;}
+
+@media(max-width:640px){
+  .content{padding:16px 12px 0;}
+  .kpi{min-width:90px;padding:10px 8px;}
+  .kv{font-size:1.1rem;}
+  .q-cards{grid-template-columns:1fr 1fr;}
+  .ctrl-bar{gap:7px;}
+}
+</style>
+</head>
+<body>
+
+<!-- LOADING -->
+<div id="loading">
+  <div class="spin"></div>
+  <div class="spin-lbl">Cargando datos…</div>
+</div>
+
+<!-- HEADER -->
+<header>
+  <a href="../ate.html" class="back">← Ate</a>
+  <div class="hdiv"></div>
+  <div class="htitles">
+    <div class="hplant">Planta · Ate</div>
+    <div class="htitle">Tiempo de Inversión en Iniciativas</div>
+  </div>
+  <div class="hbadge">4DX · 2026-1</div>
+  <span id="last-update" style="font-size:.55rem;color:#93c5fd;white-space:nowrap;"></span>
+</header>
+
+<!-- KPI STRIP -->
+<div class="kpi-row" id="kpi-row">
+  <div class="kpi"><div class="kv blue">—</div><div class="kl">Líderes con datos</div></div>
+  <div class="kpi"><div class="kv blue">—</div><div class="kl">Promedio última Q</div></div>
+  <div class="kpi"><div class="kv blue">—</div><div class="kl">Quincenas activas</div></div>
+  <div class="kpi"><div class="kv blue">—</div><div class="kl">% en meta</div></div>
+</div>
+
+<!-- CONTROLES -->
+<div class="ctrl-bar">
+  <span class="ctrl-label">Vista</span>
+  <div class="view-tabs" id="ctrl-view">
+    <div class="vtab on" onclick="switchView('general',this)">General</div>
+    <div class="vtab" onclick="switchView('individual',this)">Individual</div>
+  </div>
+  <div class="ctrl-sep"></div>
+  <span class="ctrl-label">Nivel</span>
+  <div class="view-tabs" id="ctrl-nivel">
+    <div class="vtab on" onclick="switchNivel('todos',this)">Todos</div>
+    <div class="vtab" onclick="switchNivel('intermedio',this)">Intermedios</div>
+    <div class="vtab" onclick="switchNivel('nuevo',this)">Nuevos</div>
+  </div>
+  <div class="ctrl-sep"></div>
+  <span class="ctrl-label">Quincena</span>
+  <div style="display:flex;gap:4px;flex-wrap:wrap;" id="q-chips"></div>
+  <div class="ctrl-sep" id="sel-sep" style="display:none"></div>
+  <span class="ctrl-label" id="sel-lbl" style="display:none">Líder</span>
+  <select class="leader-sel" id="leader-select" style="display:none"></select>
+</div>
+
+<!-- MAIN CONTENT -->
+<div class="content">
+
+  <!-- ── VISTA GENERAL ── -->
+  <div id="view-general">
+
+    <!-- Chart -->
+    <div class="sec-block">
+      <div class="sec-block-hd">
+        <div class="sec-block-title">Horas promedio por quincena</div>
+        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+          <div class="perf-legend">
+            <div class="pleg"><div class="pleg-dot" style="background:#16a34a;"></div>≥ meta</div>
+            <div class="pleg"><div class="pleg-dot" style="background:#d97706;"></div>80 %</div>
+            <div class="pleg"><div class="pleg-dot" style="background:#ea580c;"></div>50 %</div>
+            <div class="pleg"><div class="pleg-dot" style="background:#dc2626;"></div>&lt; 50 %</div>
+          </div>
+          <span class="meta-badge" id="meta-badge">META — h</span>
+        </div>
+      </div>
+      <div class="sec-block-body">
+        <div class="chart-wrap">
+          <svg id="bar-canvas"></svg>
+        </div>
+      </div>
+    </div>
+
+    <!-- Heatmap -->
+    <div class="sec-block">
+      <div class="sec-block-hd">
+        <div class="sec-block-title">Detalle por líder</div>
+      </div>
+      <div class="sec-block-body" style="padding-top:10px;">
+        <div class="hm-scroll">
+          <table class="hm-table" id="heatmap"></table>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ── VISTA INDIVIDUAL ── -->
+  <div id="view-individual" style="display:none;">
+    <div class="sec-block" id="leader-detail">
+      <div class="empty-state">Selecciona un líder en el menú superior</div>
+    </div>
+  </div>
+
+</div><!-- /content -->
+
+<footer>4DX · Tiempo de Inversión en Iniciativas · Planta Ate · 2026-1</footer>
+
+<script>
+// ─── CONFIG ───────────────────────────────────────────────────────────────────
+const CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vSI4G-2KDHTK9i7ZOLNFivP9JttrtKao9A02GEAHxociatw_sb0hUvU-eGH2CjiBQ/pub?gid=1891876114&single=true&output=csv';
+// META progresiva por quincena (2 semanas cada una)
+// h/sem ref:  3.3  4.9   6.2   7.2   7.7   8.4   9.1   9.6
+const META_Q = [6.6, 9.8, 12.4, 14.4, 15.4, 16.8, 18.2, 19.2];
+function getMetaQ(qNum){ return META_Q[(qNum||1)-1] ?? META_Q[META_Q.length-1]; }
+const Q_SESSIONS = ['S1 → S2','S3 → S4','S5 → S6','S7 → S8','S9 → S10','S11 → S12'];
+
+// ─── STATE ────────────────────────────────────────────────────────────────────
+let LEADERS    = [];
+let QUINCENAS  = [];
+let currentView      = 'general';
+let currentNivel     = 'todos';
+let currentQuincenas = new Set(); // vacío = todas
+
+// ─── UTILS ────────────────────────────────────────────────────────────────────
+function nrm(s){ return (s||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().trim(); }
+
+function parseCSV(text){
+  if(text.charCodeAt(0)===0xFEFF) text=text.slice(1);
+  text=text.replace(/\r\n/g,'\n').replace(/\r/g,'\n');
+  const rows=[]; let cur=[],field='',inQ=false;
+  for(let i=0;i<text.length;i++){
+    const c=text[i];
+    if(inQ){
+      if(c==='"'){ if(text[i+1]==='"'){field+='"';i++;} else inQ=false; }
+      else field+=c;
+    } else {
+      if(c==='"') inQ=true;
+      else if(c===','){cur.push(field);field='';}
+      else if(c==='\n'){cur.push(field);rows.push(cur);cur=[];field='';}
+      else field+=c;
+    }
+  }
+  if(field||cur.length){cur.push(field);rows.push(cur);}
+  return rows;
+}
+
+function findCol(headers, ...terms){
+  for(let i=0;i<headers.length;i++){
+    const n=nrm(headers[i]);
+    if(terms.every(t=>n.includes(t))) return i;
+  }
+  return -1;
+}
+
+function makeShort(name){
+  // Primer nombre + primer apellido
+  const p=(name||'').trim().split(/\s+/);
+  if(p.length<=2) return (name||'').trim();
+  if(p.length===3) return p[0]+' '+p[1];
+  return p[0]+' '+p[p.length-2];
+}
+function makeAbbrev(name){
+  // Primer nombre + inicial primer apellido (espacios reducidos)
+  const p=(name||'').trim().split(/\s+/);
+  if(p.length<=1) return (name||'').trim();
+  const sur=p.length===2?p[1]:p.length===3?p[1]:p[p.length-2];
+  return p[0]+' '+sur[0]+'.';
+}
+
+function parseHours(raw){
+  const s=(raw||'').trim().replace(',','.');
+  if(!s||s==='-'||s==='0') return null;
+  const n=parseFloat(s);
+  return isNaN(n)||n===0 ? null : n;
+}
+
+// ─── COLORS ───────────────────────────────────────────────────────────────────
+function perfColor(h, meta){
+  const m = meta ?? getMetaQ(1);
+  if(h===null||h===undefined) return '#94a3b8';
+  if(h>=m)       return '#16a34a';
+  if(h>=m*0.8)   return '#d97706';
+  if(h>=m*0.5)   return '#ea580c';
+  return '#dc2626';
+}
+function perfBg(h, meta){
+  const m = meta ?? getMetaQ(1);
+  if(h===null||h===undefined) return '#f8fafc';
+  if(h>=m)       return '#dcfce7';
+  if(h>=m*0.8)   return '#fef3c7';
+  if(h>=m*0.5)   return '#ffedd5';
+  return '#fee2e2';
+}
+function nivelBadge(nivel){
+  if(!nivel) return '';
+  const cls = nrm(nivel).includes('intermed') ? 'nb-int' : 'nb-nvo';
+  return `<span class="nivel-badge ${cls}">${nivel}</span>`;
+}
+
+// ─── CSV → DATA ───────────────────────────────────────────────────────────────
+function buildFromCSV(rows){
+  // Find header row (look for "nombre" or "líder" in first 10 rows)
+  let headerIdx = 0;
+  for(let i=0;i<Math.min(rows.length,10);i++){
+    if(rows[i].some(c=>nrm(c).includes('nombre')||nrm(c).includes('lider')||nrm(c).includes('colabor'))){
+      headerIdx=i; break;
+    }
+  }
+  const h = rows[headerIdx];
+
+  // Named columns
+  const colNombre = findCol(h,'nombre')>=0 ? findCol(h,'nombre') : findCol(h,'colabor')>=0 ? findCol(h,'colabor') : findCol(h,'lider');
+  const colNivel  = findCol(h,'nivel')>=0  ? findCol(h,'nivel')  : findCol(h,'tipo');
+
+  // Detect quincena columns: "Tiempo Evidenciado - Quincena N (hrs)"
+  const qMap = {};
+  for(let i=0;i<h.length;i++){
+    const n = nrm(h[i]);
+    const m = n.match(/tiempo.*quincena\s*(\d+)/);
+    if(m) qMap[parseInt(m[1])] = i;
+  }
+
+  // Build sorted QUINCENAS
+  QUINCENAS = Object.keys(qMap).sort((a,b)=>+a-+b).map(q=>({
+    label:    'Q'+q,
+    sessions: Q_SESSIONS[+q-1] || '',
+    colIdx:   qMap[+q],
+    qNum:     +q,
+    metaQ:    getMetaQ(+q)
+  }));
+
+  if(!QUINCENAS.length) return [];
+
+  // Detect planta column for filtering
+  const colPlanta = findCol(h,'planta');
+
+  // Build leader rows (filter to Ate if plant column exists)
+  return rows.slice(headerIdx+1)
+    .filter(r=>{ const nm=(r[colNombre]||'').trim(); if(!nm) return false; if(colPlanta>=0&&!nrm(r[colPlanta]||'').includes('ate')) return false; return true; })
+    .map(r=>({
+      name:      (r[colNombre]||'').trim(),
+      short:     makeShort((r[colNombre]||'').trim()),
+      abbrev:    makeAbbrev((r[colNombre]||'').trim()),
+      nivel:     colNivel>=0 ? (r[colNivel]||'').trim() : '',
+      quincenas: QUINCENAS.map(q=>({
+        label:    q.label,
+        sessions: q.sessions,
+        hours:    parseHours(r[q.colIdx]),
+        metaQ:    q.metaQ,
+        qNum:     q.qNum
+      }))
+    }))
+    .filter(l=>l.name);
+}
+
+// ─── FILTERS ──────────────────────────────────────────────────────────────────
+function filteredLeaders(){
+  if(currentNivel==='todos') return LEADERS;
+  return LEADERS.filter(l=>{
+    const n=nrm(l.nivel);
+    if(currentNivel==='intermedio') return n.includes('intermed');
+    if(currentNivel==='nuevo')      return n.includes('nuevo')||n==='new';
+    return true;
+  });
+}
+function filteredQuincenas(){
+  if(currentQuincenas.size===0) return QUINCENAS;
+  return QUINCENAS.filter(q=>currentQuincenas.has(q.label));
+}
+
+// ─── KPIs ─────────────────────────────────────────────────────────────────────
+function renderKPIs(){
+  const leaders  = filteredLeaders();
+  const activeQs = filteredQuincenas();
+
+  // Leaders with data in any active quincena
+  const withData = leaders.filter(l=>
+    l.quincenas.some(q=>activeQs.some(aq=>aq.label===q.label)&&q.hours!==null)
+  );
+
+  // Last active quincena index (within filter) that has data
+  let lastQIdx=-1;
+  activeQs.forEach(aq=>{
+    const idx=QUINCENAS.findIndex(q=>q.label===aq.label);
+    if(idx>=0&&leaders.some(l=>l.quincenas[idx]?.hours!==null)) lastQIdx=idx;
+  });
+
+  // Avg + % en meta for last active quincena
+  let avgLast=null, pctMeta=null;
+  if(lastQIdx>=0){
+    const metaLastQ=QUINCENAS[lastQIdx].metaQ;
+    const vals=leaders.map(l=>l.quincenas[lastQIdx]?.hours).filter(h=>h!==null);
+    if(vals.length){
+      avgLast=vals.reduce((a,b)=>a+b,0)/vals.length;
+      pctMeta=Math.round(vals.filter(h=>h>=metaLastQ).length/vals.length*100);
+    }
+  }
+
+  // Quincenas con al menos un dato dentro del filtro
+  const qActivas=activeQs.filter(aq=>{
+    const idx=QUINCENAS.findIndex(q=>q.label===aq.label);
+    return leaders.some(l=>l.quincenas[idx]?.hours!==null);
+  }).length;
+
+  const metaRef  = lastQIdx>=0?QUINCENAS[lastQIdx].metaQ:getMetaQ(1);
+  const avgColor = avgLast===null?'blue':avgLast>=metaRef?'green':avgLast>=metaRef*0.8?'amber':'red';
+  const pctColor = pctMeta===null?'blue':pctMeta>=80?'green':pctMeta>=60?'amber':'red';
+  const qLabel   = lastQIdx>=0?QUINCENAS[lastQIdx].label:'';
+
+  document.getElementById('kpi-row').innerHTML=`
+    <div class="kpi"><div class="kv blue">${withData.length}</div><div class="kl">Líderes con datos</div></div>
+    <div class="kpi"><div class="kv ${avgColor}">${avgLast!==null?avgLast.toFixed(1)+'h':'—'}</div><div class="kl">Promedio ${qLabel}</div></div>
+    <div class="kpi"><div class="kv blue">${qActivas}</div><div class="kl">Quincenas activas</div></div>
+    <div class="kpi"><div class="kv ${pctColor}">${pctMeta!==null?pctMeta+'%':'—'}</div><div class="kl">% en meta (última Q)</div></div>
+  `;
+}
+
+
+// ─── BAR CHART ────────────────────────────────────────────────────────────────
+function renderChart(){
+  const leaders   = filteredLeaders();
+  const chartWrap = document.querySelector('.chart-wrap');
+  if(!chartWrap||!QUINCENAS.length) return;
+
+  const svgEl = document.getElementById('bar-canvas');
+  const W = chartWrap.clientWidth;
+  const H = 240;
+  if(W<60) return;
+
+  const m = {t:24, r:52, b:56, l:44};
+  const iW = W - m.l - m.r;
+  const iH = H - m.t - m.b;
+
+  // Per-quincena averages
+  const data = QUINCENAS.map((q,i)=>{
+    const vals=leaders.map(l=>l.quincenas[i]?.hours).filter(h=>h!==null);
+    return {
+      label:    q.label,
+      sessions: q.sessions,
+      avg:      vals.length ? vals.reduce((a,b)=>a+b,0)/vals.length : null,
+      n:        vals.length,
+      metaQ:    q.metaQ,
+      qNum:     q.qNum
+    };
+  });
+
+  d3.select(svgEl).selectAll('*').remove();
+  const svg=d3.select(svgEl).attr('width',W).attr('height',H);
+
+  // Empty state
+  if(data.every(d=>d.avg===null)){
+    svg.append('text').attr('x',W/2).attr('y',H/2)
+      .attr('text-anchor','middle').style('fill','#94a3b8').style('font-size','13px')
+      .text('Sin datos disponibles');
+    return;
+  }
+
+  const maxMeta = Math.max(...QUINCENAS.map(q=>q.metaQ));
+  const maxVal = Math.max(maxMeta*1.3, d3.max(data,d=>d.avg??0)*1.15);
+  const x = d3.scaleBand().domain(QUINCENAS.map(q=>q.label)).range([0,iW]).padding(0.35);
+  const y = d3.scaleLinear().domain([0,maxVal]).range([iH,0]);
+  const g = svg.append('g').attr('transform',`translate(${m.l},${m.t})`);
+
+  // Grid lines
+  g.selectAll('.grid').data(y.ticks(5)).join('line').attr('class','grid')
+    .attr('x1',0).attr('x2',iW).attr('y1',d=>y(d)).attr('y2',d=>y(d))
+    .attr('stroke','#e2e8f0').attr('stroke-dasharray','3,2');
+
+  // Bars
+  g.selectAll('.bar').data(data).join('rect').attr('class','bar')
+    .attr('x',d=>x(d.label)).attr('width',x.bandwidth())
+    .attr('y',d=>d.avg!==null?y(d.avg):iH)
+    .attr('height',d=>d.avg!==null?Math.max(0,iH-y(d.avg)):0)
+    .attr('rx',5)
+    .attr('fill',d=>perfColor(d.avg, d.metaQ))
+    .attr('fill-opacity',d=>{
+      const active=currentQuincenas.size===0||currentQuincenas.has(d.label);
+      return active&&d.avg!==null?0.85:0.1;
+    });
+
+  // Value labels above bars
+  g.selectAll('.val-lbl').data(data).join('text').attr('class','val-lbl')
+    .attr('x',d=>x(d.label)+x.bandwidth()/2)
+    .attr('y',d=>d.avg!==null?y(d.avg)-5:iH)
+    .attr('text-anchor','middle')
+    .style('font-size','10px').style('font-weight','800')
+    .style('fill',d=>perfColor(d.avg, d.metaQ))
+    .style('opacity',d=>{
+      const active=currentQuincenas.size===0||currentQuincenas.has(d.label);
+      return active&&d.avg!==null?1:0;
+    })
+    .text(d=>d.avg!==null?d.avg.toFixed(1)+'h':'');
+
+  // META escalonada: un segmento por quincena
+  QUINCENAS.forEach((q,i)=>{
+    const qx = x(q.label);
+    if(qx===undefined) return;
+    const ym = y(q.metaQ);
+    const activeQ = currentQuincenas.size===0||currentQuincenas.has(q.label);
+    // Segmento horizontal en el META de esta quincena
+    g.append('line')
+      .attr('x1',qx).attr('x2',qx+x.bandwidth())
+      .attr('y1',ym).attr('y2',ym)
+      .attr('stroke','#2563eb').attr('stroke-width',2).attr('stroke-dasharray','5,3')
+      .attr('opacity', activeQ?1:0.15);
+    // Conector diagonal al siguiente (si existe)
+    if(i<QUINCENAS.length-1){
+      const nextQ=QUINCENAS[i+1];
+      const nx=x(nextQ.label);
+      if(nx!==undefined){
+        g.append('line')
+          .attr('x1',qx+x.bandwidth()).attr('x2',nx)
+          .attr('y1',ym).attr('y2',y(nextQ.metaQ))
+          .attr('stroke','#93c5fd').attr('stroke-width',1).attr('stroke-dasharray','3,3');
+      }
+    }
+    // Etiqueta META al final del último segmento
+    if(i===QUINCENAS.length-1){
+      g.append('text')
+        .attr('x',qx+x.bandwidth()+4).attr('y',ym+4)
+        .style('fill','#2563eb').style('font-size','8px').style('font-weight','800')
+        .text(q.metaQ+'h');
+    }
+  });
+
+  // X axis
+  const xAx = g.append('g').attr('transform',`translate(0,${iH})`).call(d3.axisBottom(x).tickSize(0));
+  xAx.select('.domain').attr('stroke','#e2e8f0');
+  xAx.selectAll('text').style('fill','#374151').style('font-size','11px').style('font-weight','700').attr('dy','14px');
+
+  // Session labels below Q labels
+  g.selectAll('.sess-lbl').data(data).join('text').attr('class','sess-lbl')
+    .attr('x',d=>x(d.label)+x.bandwidth()/2)
+    .attr('y',iH+30)
+    .attr('text-anchor','middle')
+    .style('font-size','8px').style('fill','#94a3b8').style('font-weight','600')
+    .text(d=>d.sessions);
+
+  // Y axis
+  g.append('g').call(d3.axisLeft(y).ticks(5).tickSize(3).tickFormat(d=>d+'h'))
+    .call(ax=>ax.select('.domain').remove())
+    .call(ax=>ax.selectAll('text').style('fill','#94a3b8').style('font-size','9px'));
+}
+
+// ─── HEATMAP ──────────────────────────────────────────────────────────────────
+function renderHeatmap(){
+  const leaders = filteredLeaders();
+  const t = document.getElementById('heatmap');
+  if(!QUINCENAS.length){ t.innerHTML=''; return; }
+
+  let html='<thead><tr>';
+  html+='<th class="hm-name-head">Líder</th>';
+  QUINCENAS.forEach(q=>{
+    const activeH=currentQuincenas.size===0||currentQuincenas.has(q.label);
+    html+=`<th class="hm-col-head${activeH?'':' dim'}">
+      <div class="hm-q-label">${q.label}</div>
+      <div class="hm-q-sess">${q.sessions}</div>
+    </th>`;
+  });
+  html+='</tr></thead><tbody>';
+
+  leaders.forEach(l=>{
+    html+=`<tr><td class="hm-name">
+      <span class="hm-name-text">${l.short}</span>${nivelBadge(l.nivel)}
+    </td>`;
+    l.quincenas.forEach(q=>{
+      const h=q.hours;
+      const activeC=currentQuincenas.size===0||currentQuincenas.has(q.label);
+      html+=`<td class="hm-cell${activeC?'':' dim'}" style="background:${perfBg(h,q.metaQ)};color:${perfColor(h,q.metaQ)};">
+        ${h!==null?h.toFixed(1)+'h':'—'}
+      </td>`;
+    });
+    html+='</tr>';
+  });
+  html+='</tbody>';
+  t.innerHTML=html;
+}
+
+// ─── INDIVIDUAL VIEW ──────────────────────────────────────────────────────────
+function renderIndividual(){
+  const name   = document.getElementById('leader-select').value;
+  const leader = LEADERS.find(l=>l.name===name);
+  const container = document.getElementById('leader-detail');
+
+  if(!leader){
+    container.innerHTML='<div class="empty-state">Selecciona un líder en el menú superior</div>';
+    return;
+  }
+
+  // Summary stats
+  const vals  = leader.quincenas.map(q=>q.hours).filter(h=>h!==null);
+  const total = vals.reduce((a,b)=>a+b,0);
+  const avg   = vals.length ? total/vals.length : null;
+  const best  = vals.length ? Math.max(...vals)  : null;
+  const inMeta= leader.quincenas.filter(q=>q.hours!==null&&q.hours>=q.metaQ).length;
+
+  let html=`
+    <div class="leader-hero">
+      <div class="lh-name">${leader.name}${nivelBadge(leader.nivel)}</div>
+    </div>
+    <div style="display:flex;gap:0;border-bottom:1px solid #e2e8f0;">
+      ${miniKpi('Total acumulado', total?total.toFixed(1)+'h':'—', 'blue')}
+      ${miniKpi('Promedio/quincena', avg?avg.toFixed(1)+'h':'—', 'blue')}
+      ${miniKpi('Mejor quincena', best?best.toFixed(1)+'h':'—', 'blue')}
+      ${miniKpi('Quincenas en meta', inMeta+' / '+vals.length, inMeta===vals.length&&vals.length>0?'green':inMeta>0?'amber':'red')}
+    </div>
+    <div class="q-cards">`;
+
+  leader.quincenas.forEach(q=>{
+    const h    = q.hours;
+    const meta = q.metaQ;
+    const pct  = h!==null ? Math.min(100,(h/meta)*100) : 0;
+    const col  = perfColor(h, meta);
+    const bg   = perfBg(h, meta);
+    const lbl  = h!==null?(h>=meta?'✓ En meta':'Bajo meta'):'Sin dato';
+    html+=`<div class="q-card">
+      <div class="qc-top" style="background:${bg};">
+        <div class="qc-label">${q.label}</div>
+        <div class="qc-sessions">${q.sessions}</div>
+        <div class="qc-hours" style="color:${col};">${h!==null?h.toFixed(1)+'h':'—'}</div>
+        <div class="qc-status" style="color:${col};">${lbl}</div>
+      </div>
+      <div class="qc-bar-wrap">
+        <div class="qc-bar-track">
+          <div class="qc-bar-fill" style="width:${pct.toFixed(1)}%;background:${col};"></div>
+        </div>
+        <div class="qc-bar-labels">
+          <span style="font-size:.58rem;color:#94a3b8;">0h</span>
+          <span style="font-size:.58rem;color:#2563eb;font-weight:700;">Meta ${meta}h</span>
+        </div>
+      </div>
+    </div>`;
+  });
+
+  html+='</div>';
+  container.innerHTML=html;
+}
+
+function miniKpi(lbl,val,color){
+  return `<div class="kpi" style="flex:1;min-width:100px;">
+    <div class="kv ${color}" style="font-size:1.1rem;">${val}</div>
+    <div class="kl">${lbl}</div>
+  </div>`;
+}
+
+// ─── QUINCENA CHIPS ───────────────────────────────────────────────────────────
+function populateQuincenaChips(){
+  const wrap=document.getElementById('q-chips');
+  wrap.innerHTML='';
+  QUINCENAS.forEach(q=>{
+    const chip=document.createElement('div');
+    chip.className='sess-chip';
+    chip.textContent=q.label;
+    chip.title=q.sessions;
+    chip.onclick=()=>switchQuincena(q.label,chip);
+    wrap.appendChild(chip);
+  });
+}
+function switchQuincena(label,el){
+  if(currentQuincenas.has(label)){currentQuincenas.delete(label);el.classList.remove('on');}
+  else{currentQuincenas.add(label);el.classList.add('on');}
+  renderKPIs();
+  renderHeatmap();
+  if(currentView==='general') setTimeout(renderChart,50);
+}
+
+// ─── SWITCH HANDLERS ──────────────────────────────────────────────────────────
+function switchView(view, el){
+  currentView=view;
+  document.querySelectorAll('#ctrl-view .vtab').forEach(t=>t.classList.remove('on'));
+  el.classList.add('on');
+  document.getElementById('view-general').style.display   = view==='general'   ?'block':'none';
+  document.getElementById('view-individual').style.display= view==='individual'?'block':'none';
+  const show = view==='individual';
+  document.getElementById('sel-sep').style.display = show?'':'none';
+  document.getElementById('sel-lbl').style.display = show?'':'none';
+  document.getElementById('leader-select').style.display  = show?'':'none';
+  if(show) renderIndividual();
+  else { setTimeout(()=>{renderChart();},50); }
+}
+
+function switchNivel(nivel, el){
+  currentNivel=nivel;
+  document.querySelectorAll('#ctrl-nivel .vtab').forEach(t=>t.classList.remove('on'));
+  el.classList.add('on');
+  renderKPIs();
+  if(currentView==='general'){ renderChart(); renderHeatmap(); }
+}
+
+// ─── INIT ─────────────────────────────────────────────────────────────────────
+async function init(){
+  try{
+    const res  = await fetch(CSV_URL,{cache:'no-cache'});
+    const text = await res.text();
+    const rows = parseCSV(text);
+    LEADERS    = buildFromCSV(rows);
+
+    document.getElementById('loading').style.display='none';
+    document.getElementById('meta-badge').textContent='META progresiva por quincena';
+
+    // Populate leader select
+    const sel=document.getElementById('leader-select');
+    sel.innerHTML=LEADERS.map(l=>`<option value="${l.name}">${l.name}</option>`).join('');
+    sel.addEventListener('change', renderIndividual);
+
+    populateQuincenaChips();
+    renderKPIs();
+    renderChart();
+    renderHeatmap();
+    (()=>{ const el=document.getElementById('last-update'); if(el) el.textContent='⟳ '+new Date().toLocaleTimeString('es-PE',{hour:'2-digit',minute:'2-digit',second:'2-digit'}); })();
+
+    // Auto-refresh cada 30 segundos
+    setInterval(async ()=>{
+      try{
+        const r2  = await fetch(CSV_URL,{cache:'no-cache'});
+        const tx2 = await r2.text();
+        const nv  = buildFromCSV(parseCSV(tx2));
+        if(JSON.stringify(nv)!==JSON.stringify(LEADERS)){
+          LEADERS=nv;
+          renderKPIs();
+          if(currentView==='general'){ renderHeatmap(); setTimeout(renderChart,50); }
+          else renderIndividual();
+        }
+        const el=document.getElementById('last-update');
+        if(el) el.textContent='⟳ '+new Date().toLocaleTimeString('es-PE',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
+      }catch(e){}
+    },30000);
+
+    // Responsiveness
+    if(window.ResizeObserver){
+      let _rt;
+      new ResizeObserver(()=>{
+        clearTimeout(_rt);
+        _rt=setTimeout(()=>{ if(currentView==='general') renderChart(); },120);
+      }).observe(document.querySelector('.chart-wrap'));
+    }
+  } catch(e){
+    document.getElementById('loading').innerHTML=
+      `<div style="color:#dc2626;font-size:.8rem;padding:20px;text-align:center;">
+        Error al cargar datos:<br><strong>${e.message}</strong>
+      </div>`;
+  }
+}
+
+document.addEventListener('DOMContentLoaded', init);
+</script>
+</body>
+</html>
