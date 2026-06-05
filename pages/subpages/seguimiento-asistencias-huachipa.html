@@ -69,6 +69,11 @@ table.hm th,table.hm td{border:1px solid #f1f5f9;white-space:nowrap;}
 .hm-cell.no:hover{background:#fecaca;}
 .hm-cell.ret{background:#fff7ed;color:#ea580c;}
 .hm-cell.ret:hover{background:#ffedd5;}
+.hm-cell.punt{background:#dcfce7;color:#16a34a;}
+.hm-cell.tard{background:#fef3c7;color:#b45309;}
+.hm-cell.tard:hover{background:#fde68a;}
+.leg-punt{background:#dcfce7;color:#166534;border-color:#bbf7d0;}
+.leg-tard{background:#fef3c7;color:#92400e;border-color:#fde68a;}
 .hm-cell.empty{background:#f8fafc;color:#cbd5e1;}
 .hm-cell.dim,.hm-col-head.dim{opacity:.25;pointer-events:none;}
 .corner{position:sticky;top:0;left:0;z-index:4;background:#f1f5f9;padding:6px 12px;font-size:.58rem;color:#94a3b8;border-right:2px solid #e2e8f0;}
@@ -161,6 +166,7 @@ table.hm th,table.hm td{border:1px solid #f1f5f9;white-space:nowrap;}
   <div class="view-tabs">
     <div class="vtab on" onclick="switchView('general',this)">📊 General</div>
     <div class="vtab" onclick="switchView('lider',this)">👤 Por líder</div>
+    <div class="vtab" onclick="switchView('puntualidad',this)">⏱ Puntualidad</div>
   </div>
   <span class="sep">|</span>
   <span class="ctrl-label">Nivel</span>
@@ -210,6 +216,23 @@ table.hm th,table.hm td{border:1px solid #f1f5f9;white-space:nowrap;}
   </div>
 </div>
 
+<!-- ── VISTA PUNTUALIDAD ── -->
+<div class="view" id="v-puntualidad">
+  <div class="chart-wrap">
+    <div class="chart-header">
+      <div class="chart-title">Puntualidad por sesión</div>
+      <div class="chart-legend">
+        <span class="leg-item leg-punt">✓ Puntual</span>
+        <span class="leg-item leg-tard">⏰ Tarde</span>
+      </div>
+    </div>
+    <svg id="punt-canvas"></svg>
+  </div>
+  <div class="hm-wrap">
+    <table class="hm" id="punt-hm-table"></table>
+  </div>
+</div>
+
 <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
 <script>
 
@@ -242,6 +265,12 @@ function parseCSV(text){
   return rows;
 }
 
+function normalizePunt(v){
+  const n=nrm(v);
+  if(n.includes('puntual')||n==='p') return 'PUNT';
+  if(n.includes('tard')||n==='t')    return 'TARD';
+  return '';
+}
 function normalizeAtt(v){
   const n=nrm(v);
   if(n==='si'||n==='s'||n==='yes'||n==='y'||n==='1')return'SI';
@@ -285,6 +314,15 @@ function buildFromCSV(rows){
     }
   });
   SESSIONS.sort((a,b)=>a.num-b.num);
+  // Detectar columnas de puntualidad: "Puntualidad S1", "Puntualidad S2", etc.
+  headers.forEach((h,i)=>{
+    const m=h.match(/puntual\w*[\s\-]?s\s*(\d+)/);
+    if(m){
+      const sess=SESSIONS.find(s=>s.num===parseInt(m[1]));
+      if(sess) sess.puntIdx=i;
+    }
+  });
+  SESSIONS.forEach(s=>{ if(s.puntIdx===undefined) s.puntIdx=-1; });
   console.log('Sesiones detectadas:', SESSIONS.map(s=>s.label+'@'+s.attIdx));
 
   // ── 4. Extraer fechas y nivel de las filas anteriores al header ──
@@ -320,6 +358,7 @@ function buildFromCSV(rows){
     sessions: SESSIONS.map(s=>({
       label:  s.label,
       att:    normalizeAtt(r[s.attIdx]||''),
+      punt:   s.puntIdx>=0 ? normalizePunt(r[s.puntIdx]||'') : '',
       motivo: (r[s.motiIdx]||'').trim(),
       tiempo: (r[s.tiempoIdx]||'').trim()
     }))
@@ -360,6 +399,10 @@ function filteredLeaders(){
   return result;
 }
 
+function renderKPIs(){
+  if(currentView==='puntualidad') renderKPIsPunt();
+  else renderKPIsAsist();
+}
 function filteredSessions(){
   if(currentSessions.size===0) return SESSIONS;
   return SESSIONS.filter(s=>currentSessions.has(s.label));
@@ -373,7 +416,7 @@ function nivelBadgeHtml(nivel){
 }
 
 // ══════════ KPIs ══════════
-function renderKPIs(){
+function renderKPIsAsist(){
   const fl = filteredLeaders();
   const fs = filteredSessions();
   const fsLabels = new Set(fs.map(s=>s.label));
@@ -395,6 +438,30 @@ function renderKPIs(){
   document.getElementById('k-retir').textContent   = retirados;
   document.getElementById('k-pct').textContent     = pct+'%';
   document.getElementById('hbadge').textContent    = total+' '+nivelLbl+' · '+sessLbl;
+}
+
+// ══════════ KPIS PUNTUALIDAD ══════════
+function renderKPIsPunt(){
+  const fl=filteredLeaders();
+  const fs=filteredSessions();
+  const fsLabels=new Set(fs.map(s=>s.label));
+  const total=fl.length;
+  let punt=0,tard=0,total_p=0;
+  fl.forEach(l=>l.sessions.forEach((s,i)=>{
+    if(!fsLabels.has(SESSIONS[i].label)) return;
+    if(s.punt==='PUNT'){punt++;total_p++;}
+    else if(s.punt==='TARD'){tard++;total_p++;}
+  }));
+  const pct=total_p>0?Math.round(punt/total_p*100):0;
+  const pctColor=pct>=80?'green':pct>=60?'amber':'red';
+  const sessLbl=currentSessions.size===0?'S1–S'+(SESSIONS.length||8):[...currentSessions].sort().join(' + ');
+  document.getElementById('kpi-row').innerHTML=`
+    <div class="kpi"><div class="kv blue">${total}</div><div class="kl">Líderes</div></div>
+    <div class="kpi"><div class="kv green">${punt}</div><div class="kl">Puntuales</div></div>
+    <div class="kpi"><div class="kv amber">${tard}</div><div class="kl">Tardanzas</div></div>
+    <div class="kpi"><div class="kv ${pctColor}">${pct}%</div><div class="kl">% Puntualidad</div></div>
+  `;
+  document.getElementById('hbadge').textContent=total+' líderes · '+sessLbl;
 }
 
 // ══════════ HEATMAP ══════════
@@ -440,6 +507,43 @@ function renderHeatmap(){
         td.addEventListener('mousemove',moveTip);
         td.addEventListener('mouseleave',hideTip);
       }
+    });
+  });
+}
+
+
+// ══════════ HEATMAP PUNTUALIDAD ══════════
+function renderHeatmapPunt(){
+  const tbl=document.getElementById('punt-hm-table');
+  if(!tbl) return;
+  tbl.innerHTML='';
+  const thead=tbl.createTHead(), hr=thead.insertRow();
+  const corner=document.createElement('th');
+  corner.className='corner';corner.textContent='Líder ↓ / Sesión →';
+  hr.appendChild(corner);
+  const activeLabels=new Set(filteredSessions().map(s=>s.label));
+  SESSIONS.forEach(s=>{
+    const th=document.createElement('th');
+    const isDim=currentSessions.size>0&&!activeLabels.has(s.label);
+    th.className='hm-col-head'+(isDim?' dim':'');
+    const intLine=s.dateInt?`<div class="sh-date sh-date-int"><span class="sh-tag">INT</span>${s.dateInt}</div>`:'';
+    const nvoLine=s.dateNvo?`<div class="sh-date sh-date-nvo"><span class="sh-tag">NVO</span>${s.dateNvo}</div>`:'';
+    th.innerHTML=`<div class="sh-dates">${intLine}${nvoLine}</div><span class="snum">${s.label}</span>`;
+    hr.appendChild(th);
+  });
+  const fl=filteredLeaders();
+  const tbody=tbl.createTBody();
+  fl.forEach(l=>{
+    const tr=tbody.insertRow();
+    const th=document.createElement('th');th.className='hm-row-head';
+    th.innerHTML=l.short+nivelBadgeHtml(l.nivel)+(l.grupo?`<span class="nivel-badge nb-grp">G${l.grupo}</span>`:'');
+    th.title=l.name;tr.appendChild(th);
+    l.sessions.forEach((s,i)=>{
+      const td=tr.insertCell();
+      const isDimCell=currentSessions.size>0&&!activeLabels.has(SESSIONS[i].label);
+      const cls=s.punt==='PUNT'?'punt':s.punt==='TARD'?'tard':'empty';
+      td.className='hm-cell '+cls+(isDimCell?' dim':'');
+      td.textContent=s.punt==='PUNT'?'✓':s.punt==='TARD'?'⏰':'—';
     });
   });
 }
@@ -531,6 +635,83 @@ function renderChart(){
     .style('fill',d=>d.pct===null?'none':d.pct>=80?'#16a34a':d.pct>=60?'#d97706':'#dc2626')
     .style('opacity',d=>d.active?1:0.3).text(d=>d.pct!==null?d.pct+'%':'');
 
+}
+
+
+// ══════════ GRÁFICO PUNTUALIDAD ══════════
+function renderChartPunt(){
+  const fl=filteredLeaders();
+  const fs=filteredSessions();
+  const activeLabels=new Set(fs.map(s=>s.label));
+  const svgEl=document.getElementById('punt-canvas');
+  if(!svgEl) return;
+  const wrap=svgEl.parentElement;
+  const W=wrap?wrap.clientWidth-2:600, H=220;
+  const margin={top:14,right:32,bottom:32,left:34};
+  const iW=W-margin.left-margin.right, iH=H-margin.top-margin.bottom;
+
+  const data=SESSIONS.map((s,i)=>{
+    let punt=0,tard=0;
+    fl.forEach(l=>{
+      if(l.sessions[i].punt==='PUNT') punt++;
+      else if(l.sessions[i].punt==='TARD') tard++;
+    });
+    const total=punt+tard;
+    return{label:s.label,punt,tard,pct:total>0?Math.round(punt/total*100):null,active:activeLabels.has(s.label)};
+  });
+
+  d3.select(svgEl).selectAll('*').remove();
+  const svg=d3.select(svgEl).attr('width',W).attr('height',H);
+  const g=svg.append('g').attr('transform',`translate(${margin.left},${margin.top})`);
+  const x=d3.scaleBand().domain(data.map(d=>d.label)).range([0,iW]).padding(.32);
+  const maxVal=fl.length||1;
+  const y=d3.scaleLinear().domain([0,maxVal]).nice().range([iH,0]);
+
+  // Grid
+  g.append('g').call(d3.axisLeft(y).ticks(4).tickSize(-iW))
+    .call(a=>{a.select('.domain').remove();
+      a.selectAll('.tick line').style('stroke','#f1f5f9').style('stroke-dasharray','3,3');
+      a.selectAll('.tick text').style('fill','#94a3b8').style('font-size','10px');});
+
+  // Línea 80%
+  const ref80=maxVal*0.8;
+  const ref80y=y(ref80);
+  g.append('line').attr('x1',0).attr('x2',iW).attr('y1',ref80y).attr('y2',ref80y)
+    .attr('stroke','#2563eb').attr('stroke-width',1).attr('stroke-dasharray','4,3');
+  g.append('text').attr('x',iW+3).attr('y',ref80y+3)
+    .style('fill','#2563eb').style('font-size','9px').style('font-weight','700').text('80%');
+
+  g.append('g').attr('transform',`translate(0,${iH})`).call(d3.axisBottom(x).tickSize(0))
+    .call(a=>{a.select('.domain').attr('stroke','#e2e8f0');
+      a.selectAll('.tick text').style('fill','#64748b').style('font-size','11px');});
+
+  // Barras puntuales
+  g.selectAll('.bar-punt').data(data).join('rect').attr('class','bar-punt')
+    .attr('x',d=>x(d.label)).attr('width',x.bandwidth())
+    .attr('y',d=>y(d.punt)).attr('height',d=>Math.max(0,iH-y(d.punt)))
+    .attr('rx',4).attr('fill','#4ade80').attr('fill-opacity',d=>d.active?0.9:0.25);
+  // Barras tarde
+  g.selectAll('.bar-tard').data(data).join('rect').attr('class','bar-tard')
+    .attr('x',d=>x(d.label)).attr('width',x.bandwidth())
+    .attr('y',d=>y(d.punt+d.tard)).attr('height',d=>Math.max(0,y(d.punt)-y(d.punt+d.tard)))
+    .attr('rx',4).attr('fill','#fbbf24').attr('fill-opacity',d=>d.active?0.85:0.2);
+
+  // Labels dentro barras
+  g.selectAll('.cnt-punt').data(data).join('text').attr('class','cnt-punt')
+    .attr('x',d=>x(d.label)+x.bandwidth()/2).attr('y',d=>(y(d.punt)+iH)/2+4)
+    .attr('text-anchor','middle').style('font-size','10px').style('font-weight','700').style('fill','#166534')
+    .style('opacity',d=>iH-y(d.punt)>18&&d.punt>0?1:0).text(d=>d.punt||'');
+  g.selectAll('.cnt-tard').data(data).join('text').attr('class','cnt-tard')
+    .attr('x',d=>x(d.label)+x.bandwidth()/2).attr('y',d=>(y(d.punt+d.tard)+y(d.punt))/2+4)
+    .attr('text-anchor','middle').style('font-size','10px').style('font-weight','700').style('fill','#78350f')
+    .style('opacity',d=>y(d.punt)-y(d.punt+d.tard)>18&&d.tard>0?1:0).text(d=>d.tard||'');
+
+  // % labels
+  g.selectAll('.pct-lbl-p').data(data).join('text').attr('class','pct-lbl-p')
+    .attr('x',d=>x(d.label)+x.bandwidth()/2).attr('y',d=>d.pct!==null?y(d.punt+d.tard)-7:0)
+    .attr('text-anchor','middle').style('font-size','10px').style('font-weight','800')
+    .style('fill',d=>d.pct===null?'none':d.pct>=80?'#16a34a':d.pct>=60?'#d97706':'#dc2626')
+    .style('opacity',d=>d.active?1:0.3).text(d=>d.pct!==null?d.pct+'%':'');
 }
 
 // ══════════ VISTA POR LÍDER ══════════
@@ -677,8 +858,10 @@ function switchView(id,el){
   el.classList.add('on');
   document.querySelectorAll('.view').forEach(v=>v.classList.remove('on'));
   document.getElementById('v-'+id).classList.add('on');
+  renderKPIs();
   if(id==='lider') renderLeaderView(currentLeader);
   if(id==='general') setTimeout(renderChart,50);
+  if(id==='puntualidad'){ renderHeatmapPunt(); setTimeout(renderChartPunt,50); }
 }
 
 // ══════════ TOOLTIP ══════════
@@ -727,6 +910,7 @@ async function init(){
         populateGrupoChips();
         renderKPIs();
         if(currentView==='general'){ renderHeatmap(); setTimeout(renderChart,50); }
+        else if(currentView==='puntualidad'){ renderHeatmapPunt(); setTimeout(renderChartPunt,50); }
         else renderLeaderView(currentLeader);
       }
       const el=document.getElementById('last-update');
