@@ -182,6 +182,21 @@ table.hm th,table.hm td{border:1px solid #f1f5f9;white-space:nowrap;}
   <span class="ctrl-label">Grupo</span>
   <div style="display:flex;gap:4px;flex-wrap:wrap;" id="grupo-chips"></div>
   <span class="sep">|</span>
+  <span class="ctrl-label" id="lbl-att">Estado</span>
+  <div style="display:flex;gap:4px;flex-wrap:wrap;" id="att-chips">
+    <div class="sess-chip on" onclick="switchAttFilter('',this)">Todos</div>
+    <div class="sess-chip" onclick="switchAttFilter('SI',this)">✓ Asistió</div>
+    <div class="sess-chip" onclick="switchAttFilter('NO',this)">✗ Faltó</div>
+    <div class="sess-chip" onclick="switchAttFilter('RET',this)">↩ Retirado</div>
+  </div>
+  <span class="sep" id="sep-punt-f">|</span>
+  <span class="ctrl-label" id="lbl-punt-f">Punt.</span>
+  <div style="display:flex;gap:4px;flex-wrap:wrap;" id="punt-chips" style="display:none;">
+    <div class="sess-chip on" onclick="switchPuntFilter('',this)">Todos</div>
+    <div class="sess-chip" onclick="switchPuntFilter('PUNT',this)">✓ Puntual</div>
+    <div class="sess-chip" onclick="switchPuntFilter('TARD',this)">⏰ Tarde</div>
+  </div>
+  <span class="sep">|</span>
   <span class="ctrl-label">Líder</span>
   <select class="sel-leader" id="sel-leader" onchange="onLeaderChange()">
     <option value="">— Seleccionar —</option>
@@ -244,6 +259,8 @@ let LEADERS = [], SESSIONS = [], DATES = [];
 let currentView = 'general', currentLeader = '', currentNivel = 'todos';
 let currentSessions = new Set();
 let currentGrupos   = new Set(); // vacío = todos los grupos // vacío = todas las sesiones
+let currentAttFilter  = ''; // '' | 'SI' | 'NO' | 'RET'
+let currentPuntFilter = ''; // '' | 'PUNT' | 'TARD'
 
 // ══════════ CSV PARSER (robusto) ══════════
 function nrm(s){return(s||'').trim().toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'');}
@@ -401,6 +418,16 @@ function filteredLeaders(){
   // Filtro por grupo
   if(currentGrupos.size>0){
     result=result.filter(l=>currentGrupos.has(l.grupo));
+  }
+  // Filtro por estado de asistencia
+  if(currentAttFilter){
+    const fsLabels=new Set(filteredSessions().map(s=>s.label));
+    result=result.filter(l=>l.sessions.some((s,i)=>fsLabels.has(SESSIONS[i].label)&&s.att===currentAttFilter));
+  }
+  // Filtro por puntualidad
+  if(currentPuntFilter){
+    const fsLabels=new Set(filteredSessions().map(s=>s.label));
+    result=result.filter(l=>l.sessions.some((s,i)=>fsLabels.has(SESSIONS[i].label)&&s.punt===currentPuntFilter));
   }
   return result;
 }
@@ -861,6 +888,25 @@ function switchGrupo(g,el){
   if(currentView==='general') setTimeout(renderChart,50);
   if(currentView==='puntualidad'){ renderHeatmapPunt(); setTimeout(renderChartPunt,50); }
 }
+function switchAttFilter(val,el){
+  currentAttFilter=val;
+  document.querySelectorAll('#att-chips .sess-chip').forEach(c=>c.classList.remove('on'));
+  el.classList.add('on');
+  renderKPIs(); renderHeatmap();
+  if(currentView==='general') setTimeout(renderChart,50);
+  if(currentView==='puntualidad'){ renderHeatmapPunt(); setTimeout(renderChartPunt,50); }
+  if(currentView==='lider') renderLeaderView(currentLeader);
+  populateSelect();
+}
+function switchPuntFilter(val,el){
+  currentPuntFilter=val;
+  document.querySelectorAll('#punt-chips .sess-chip').forEach(c=>c.classList.remove('on'));
+  el.classList.add('on');
+  renderKPIs();
+  if(currentView==='puntualidad'){ renderHeatmapPunt(); setTimeout(renderChartPunt,50); }
+  else{ renderHeatmap(); if(currentView==='general') setTimeout(renderChart,50); }
+  populateSelect();
+}
 
 // ══════════ SWITCH NIVEL ══════════
 function switchNivel(nivel,el){
@@ -882,6 +928,11 @@ function switchView(id,el){
   el.classList.add('on');
   document.querySelectorAll('.view').forEach(v=>v.classList.remove('on'));
   document.getElementById('v-'+id).classList.add('on');
+  // Mostrar filtros según vista
+  const isPunt=id==='puntualidad';
+  ['sep-punt-f','lbl-punt-f','punt-chips'].forEach(eid=>{
+    const e=document.getElementById(eid); if(e) e.style.display=isPunt?'':'none';
+  });
   renderKPIs();
   if(id==='lider') renderLeaderView(currentLeader);
   if(id==='general') setTimeout(renderChart,50);
