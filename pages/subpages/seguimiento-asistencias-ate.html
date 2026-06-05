@@ -836,6 +836,7 @@ function switchSession(label,el){
   renderKPIs();
   renderHeatmap();
   if(currentView==='general') setTimeout(renderChart,50);
+  if(currentView==='puntualidad'){ renderHeatmapPunt(); setTimeout(renderChartPunt,50); }
 }
 
 // ══════════ GRUPO CHIPS ══════════
@@ -858,6 +859,7 @@ function switchGrupo(g,el){
   else{currentGrupos.add(g);el.classList.add('on');}
   renderKPIs(); renderHeatmap();
   if(currentView==='general') setTimeout(renderChart,50);
+  if(currentView==='puntualidad'){ renderHeatmapPunt(); setTimeout(renderChartPunt,50); }
 }
 
 // ══════════ SWITCH NIVEL ══════════
@@ -869,6 +871,7 @@ function switchNivel(nivel,el){
   renderKPIs();
   renderHeatmap();
   if(currentView==='general') setTimeout(renderChart,50);
+  if(currentView==='puntualidad'){ renderHeatmapPunt(); setTimeout(renderChartPunt,50); }
   if(currentView==='lider') renderLeaderView(currentLeader);
 }
 
