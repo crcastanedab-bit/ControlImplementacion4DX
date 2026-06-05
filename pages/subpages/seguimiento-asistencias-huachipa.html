@@ -472,12 +472,6 @@ function renderKPIsAsist(){
   const nivelLbl = currentNivel==='todos'?'líderes':currentNivel==='intermedio'?'intermedios':'nuevos';
   const sessLbl = currentSessions.size===0 ? 'S1–S'+(SESSIONS.length||8)
     : [...currentSessions].sort().join(' + ');
-  document.getElementById('k-lideres').textContent = total;
-  document.getElementById('k-asist').textContent   = asist;
-  document.getElementById('k-faltas').textContent  = faltas;
-  document.getElementById('k-retir').textContent   = retirados;
-  document.getElementById('k-pct').textContent     = pct+'%';
-  // Restaurar clases de color y etiquetas originales (pueden haber cambiado en la vista Puntualidad)
   document.getElementById('k-asist').className  = 'kv green';
   document.getElementById('k-faltas').className = 'kv red';
   document.getElementById('k-pct').className    = 'kv amber';
@@ -486,6 +480,31 @@ function renderKPIsAsist(){
   document.getElementById('kl-faltas').textContent = 'Faltas';
   document.getElementById('kl-pct').textContent   = '% Asistencia';
   document.getElementById('kl-retir').textContent  = 'Retirados';
+  if(!currentAttFilter){
+    document.getElementById('k-lideres').textContent = total;
+    document.getElementById('k-asist').textContent   = asist;
+    document.getElementById('k-faltas').textContent  = faltas;
+    document.getElementById('k-retir').textContent   = retirados;
+    document.getElementById('k-pct').textContent     = pct+'%';
+  } else if(currentAttFilter==='SI'){
+    document.getElementById('k-lideres').textContent = '—';
+    document.getElementById('k-asist').textContent   = asist;
+    document.getElementById('k-faltas').textContent  = '—';
+    document.getElementById('k-retir').textContent   = '—';
+    document.getElementById('k-pct').textContent     = '100%';
+  } else if(currentAttFilter==='NO'){
+    document.getElementById('k-lideres').textContent = '—';
+    document.getElementById('k-asist').textContent   = '—';
+    document.getElementById('k-faltas').textContent  = faltas;
+    document.getElementById('k-retir').textContent   = '—';
+    document.getElementById('k-pct').textContent     = '—';
+  } else {
+    document.getElementById('k-lideres').textContent = '—';
+    document.getElementById('k-asist').textContent   = '—';
+    document.getElementById('k-faltas').textContent  = '—';
+    document.getElementById('k-retir').textContent   = retirados;
+    document.getElementById('k-pct').textContent     = '—';
+  }
   document.getElementById('hbadge').textContent    = total+' '+nivelLbl+' · '+sessLbl;
 }
 
@@ -504,18 +523,30 @@ function renderKPIsPunt(){
   const pct=total_p>0?Math.round(punt/total_p*100):0;
   const pctColor=pct>=80?'green':pct>=60?'amber':'red';
   const sessLbl=currentSessions.size===0?'S1–S'+(SESSIONS.length||8):[...currentSessions].sort().join(' + ');
-  document.getElementById('k-lideres').textContent  = total;
-  document.getElementById('k-asist').textContent    = punt;
   document.getElementById('k-asist').className      = 'kv green';
   document.getElementById('kl-asist').textContent   = 'Puntuales';
-  document.getElementById('k-faltas').textContent   = tard;
   document.getElementById('k-faltas').className     = 'kv amber';
   document.getElementById('kl-faltas').textContent  = 'Tardanzas';
-  document.getElementById('k-pct').textContent      = pct+'%';
-  document.getElementById('k-pct').className        = 'kv '+pctColor;
+  document.getElementById('k-pct').className        = 'kv '+(currentPuntFilter?'amber':pctColor);
   document.getElementById('kl-pct').textContent     = '% Puntualidad';
   document.getElementById('k-retir').textContent    = '—';
   document.getElementById('kl-retir').textContent   = '—';
+  if(!currentPuntFilter){
+    document.getElementById('k-lideres').textContent = total;
+    document.getElementById('k-asist').textContent   = punt;
+    document.getElementById('k-faltas').textContent  = tard;
+    document.getElementById('k-pct').textContent     = pct+'%';
+  } else if(currentPuntFilter==='PUNT'){
+    document.getElementById('k-lideres').textContent = '—';
+    document.getElementById('k-asist').textContent   = punt;
+    document.getElementById('k-faltas').textContent  = '—';
+    document.getElementById('k-pct').textContent     = '100%';
+  } else {
+    document.getElementById('k-lideres').textContent = '—';
+    document.getElementById('k-asist').textContent   = '—';
+    document.getElementById('k-faltas').textContent  = tard;
+    document.getElementById('k-pct').textContent     = '—';
+  }
   document.getElementById('hbadge').textContent     = total+' líderes · '+sessLbl;
 }
 
