@@ -76,6 +76,7 @@ table.hm th,table.hm td{border:1px solid #f1f5f9;white-space:nowrap;}
 .leg-tard{background:#fef3c7;color:#92400e;border-color:#fde68a;}
 .hm-cell.empty{background:#f8fafc;color:#cbd5e1;}
 .hm-cell.dim,.hm-col-head.dim{opacity:.25;pointer-events:none;}
+.hm-cell.tenue{opacity:.15;}
 .corner{position:sticky;top:0;left:0;z-index:4;background:#f1f5f9;padding:6px 12px;font-size:.58rem;color:#94a3b8;border-right:2px solid #e2e8f0;}
 /* ─── CHIPS DE SESIÓN ─── */
 .sess-chip{font-size:.63rem;padding:3px 9px;border-radius:6px;cursor:pointer;border:1px solid #e2e8f0;background:#f8fafc;color:#64748b;font-weight:700;transition:all .12s;}
@@ -431,11 +432,8 @@ function filteredLeaders(){
   // Filtro por puntualidad
   if(currentPuntFilter){
     const fsLabels=new Set(filteredSessions().map(s=>s.label));
-    const opposite=currentPuntFilter==='TARD'?'PUNT':'TARD';
     result=result.filter(l=>
-      !l.sessions.some((s,i)=>fsLabels.has(SESSIONS[i].label)&&s.att==='NO')&&
-      l.sessions.some((s,i)=>fsLabels.has(SESSIONS[i].label)&&s.att==='SI'&&s.punt===currentPuntFilter)&&
-      !l.sessions.some((s,i)=>fsLabels.has(SESSIONS[i].label)&&s.att==='SI'&&s.punt===opposite)
+      l.sessions.some((s,i)=>fsLabels.has(SESSIONS[i].label)&&s.att==='SI'&&s.punt===currentPuntFilter)
     );
   }
   return result;
@@ -557,7 +555,8 @@ function renderHeatmap(){
       const td=tr.insertCell();
       const isDimCell = currentSessions.size>0 && !activeLabels.has(SESSIONS[i].label);
       const cls = s.att==='SI'?'si':s.att==='NO'?'no':s.att==='RET'?'ret':'empty';
-      td.className='hm-cell '+cls+(isDimCell?' dim':'');
+      const noMatch = currentAttFilter && s.att && s.att!==currentAttFilter;
+      td.className='hm-cell '+cls+(isDimCell?' dim':'')+(noMatch?' tenue':'');
       td.textContent = s.att==='SI'?'✓':s.att==='NO'?'✗':s.att==='RET'?'↩':'—';
       if(s.motivo){
         td.style.cursor='pointer';
@@ -601,7 +600,8 @@ function renderHeatmapPunt(){
       const isDimCell=currentSessions.size>0&&!activeLabels.has(SESSIONS[i].label);
       const pv=s.att==='SI';
       const cls=pv&&s.punt==='PUNT'?'punt':pv&&s.punt==='TARD'?'tard':'empty';
-      td.className='hm-cell '+cls+(isDimCell?' dim':'');
+      const pNoMatch=pv&&currentPuntFilter&&s.punt!==currentPuntFilter;
+      td.className='hm-cell '+cls+(isDimCell?' dim':'')+(pNoMatch?' tenue':'');
       td.textContent=pv&&s.punt==='PUNT'?'✓':pv&&s.punt==='TARD'?'⏰':'—';
     });
   });
@@ -876,6 +876,7 @@ function switchSession(label,el){
   renderHeatmap();
   if(currentView==='general') setTimeout(renderChart,50);
   if(currentView==='puntualidad'){ renderHeatmapPunt(); setTimeout(renderChartPunt,50); }
+  if(currentView==='lider'){ populateSelect(); renderLeaderView(currentLeader); }
 }
 
 // ══════════ GRUPO CHIPS ══════════
@@ -899,6 +900,8 @@ function switchGrupo(g,el){
   renderKPIs(); renderHeatmap();
   if(currentView==='general') setTimeout(renderChart,50);
   if(currentView==='puntualidad'){ renderHeatmapPunt(); setTimeout(renderChartPunt,50); }
+  populateSelect();
+  if(currentView==='lider') renderLeaderView(currentLeader);
 }
 function switchAttFilter(val,el){
   currentAttFilter=val;
@@ -936,9 +939,16 @@ function exportExcel(){
     const cols = fs.map(s=>{
       const idx = SESSIONS.findIndex(ss=>ss.label===s.label);
       const sd  = l.sessions[idx];
-      if(!sd) return '—';
-      if(isPunt) return sd.punt==='PUNT'?'Puntual':sd.punt==='TARD'?'Tarde':'—';
-      return sd.att==='SI'?'Asistió':sd.att==='NO'?'Faltó':sd.att==='RET'?'Retirado':'—';
+      if(!sd) return '';
+      if(isPunt){
+        // Solo exportar si coincide con el filtro de puntualidad activo
+        if(sd.att!=='SI') return '';
+        if(currentPuntFilter && sd.punt!==currentPuntFilter) return '';
+        return sd.punt==='PUNT'?'Puntual':sd.punt==='TARD'?'Tarde':'';
+      }
+      // Solo exportar si coincide con el filtro de asistencia activo
+      if(currentAttFilter && sd.att!==currentAttFilter) return '';
+      return sd.att==='SI'?'Asistió':sd.att==='NO'?'Faltó':sd.att==='RET'?'Retirado':'';
     });
     return [l.name, l.nivel||'—', l.grupo||'—', ...cols];
   });
@@ -981,10 +991,11 @@ function switchView(id,el){
   document.getElementById('v-'+id).classList.add('on');
   const isPunt=id==='puntualidad';
   const isLider=id==='lider';
-  // Ocultar Estado en puntualidad, mostrar Punt. solo en puntualidad
+  // Ocultar Estado en puntualidad y por líder, mostrar Punt. solo en puntualidad
+  const hideAtt=isPunt||isLider;
   ['sep-att','lbl-att','att-chips'].forEach(eid=>{
     const e=document.getElementById(eid);
-    if(e) e.style.display=isPunt?'none':(eid==='att-chips'?'flex':'');
+    if(e) e.style.display=hideAtt?'none':(eid==='att-chips'?'flex':'');
   });
   ['sep-punt-f','lbl-punt-f','punt-chips'].forEach(eid=>{
     const e=document.getElementById(eid);
@@ -994,19 +1005,29 @@ function switchView(id,el){
   ['sep-lider','lbl-lider','sel-leader'].forEach(eid=>{
     const e=document.getElementById(eid); if(e) e.style.display=isLider?'':'none';
   });
+  // Al entrar a por líder, limpiar filtro Estado
+  if(isLider && currentAttFilter){
+    currentAttFilter='';
+    document.querySelectorAll('#att-chips .sess-chip').forEach((c,i)=>c.classList.toggle('on',i===0));
+  }
   // Al entrar a puntualidad, forzar att=SI internamente (solo asistentes tienen puntualidad)
   if(isPunt){
     currentAttFilter='SI';
     document.querySelectorAll('#att-chips .sess-chip').forEach((c,i)=>c.classList.toggle('on',i===1));
   }
-  // Al salir de puntualidad, limpiar filtro Punt.
+  // Al salir de puntualidad: limpiar filtro Punt. y resetear filtro Att.
   if(!isPunt && currentPuntFilter){
     currentPuntFilter='';
     document.querySelectorAll('#punt-chips .sess-chip').forEach((c,i)=>c.classList.toggle('on',i===0));
   }
+  // Al volver a General desde Puntualidad, resetear filtro Estado (att fue forzado a 'SI')
+  if(id==='general' && currentAttFilter){
+    currentAttFilter='';
+    document.querySelectorAll('#att-chips .sess-chip').forEach((c,i)=>c.classList.toggle('on',i===0));
+  }
   renderKPIs();
   if(id==='lider') renderLeaderView(currentLeader);
-  if(id==='general') setTimeout(renderChart,50);
+  if(id==='general'){ renderHeatmap(); setTimeout(renderChart,50); }
   if(id==='puntualidad'){ renderHeatmapPunt(); setTimeout(renderChartPunt,50); }
 }
 
