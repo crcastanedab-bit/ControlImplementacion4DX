@@ -626,12 +626,14 @@ function renderChart(){
   const data=SESSIONS.map((s,i)=>{
     let si=0,no=0,ret=0;
     fl.forEach(l=>{
-      if(l.sessions[i].att==='SI')si++;
-      else if(l.sessions[i].att==='NO')no++;
-      else if(l.sessions[i].att==='RET')ret++;
+      const att=l.sessions[i].att;
+      if(currentAttFilter && att!==currentAttFilter) return;
+      if(att==='SI')si++;
+      else if(att==='NO')no++;
+      else if(att==='RET')ret++;
     });
-    const total=si+no; // RET excluido del denominador
-    return{label:s.label,si,no,ret,pct:total>0?Math.round(si/total*100):null,active:activeLabels.has(s.label)};
+    const pct=!currentAttFilter&&(si+no)>0?Math.round(si/(si+no)*100):null;
+    return{label:s.label,si,no,ret,pct,active:activeLabels.has(s.label)};
   });
 
   const margin={top:14,right:32,bottom:32,left:34};
@@ -713,11 +715,13 @@ function renderChartPunt(){
     let punt=0,tard=0;
     fl.forEach(l=>{
       if(l.sessions[i].att!=='SI') return;
-      if(l.sessions[i].punt==='PUNT') punt++;
-      else if(l.sessions[i].punt==='TARD') tard++;
+      const pv=l.sessions[i].punt;
+      if(currentPuntFilter && pv!==currentPuntFilter) return;
+      if(pv==='PUNT') punt++;
+      else if(pv==='TARD') tard++;
     });
-    const total=punt+tard;
-    return{label:s.label,punt,tard,pct:total>0?Math.round(punt/total*100):null,active:activeLabels.has(s.label)};
+    const pct=!currentPuntFilter&&(punt+tard)>0?Math.round(punt/(punt+tard)*100):null;
+    return{label:s.label,punt,tard,pct,active:activeLabels.has(s.label)};
   });
 
   d3.select(svgEl).selectAll('*').remove();
