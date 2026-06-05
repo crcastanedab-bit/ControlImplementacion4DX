@@ -431,7 +431,7 @@ function filteredLeaders(){
   // Filtro por puntualidad
   if(currentPuntFilter){
     const fsLabels=new Set(filteredSessions().map(s=>s.label));
-    result=result.filter(l=>l.sessions.some((s,i)=>fsLabels.has(SESSIONS[i].label)&&s.punt===currentPuntFilter));
+    result=result.filter(l=>l.sessions.some((s,i)=>fsLabels.has(SESSIONS[i].label)&&s.att==='SI'&&s.punt===currentPuntFilter));
   }
   return result;
 }
@@ -494,7 +494,7 @@ function renderKPIsPunt(){
   const total=fl.length;
   let punt=0,tard=0,total_p=0;
   fl.forEach(l=>l.sessions.forEach((s,i)=>{
-    if(!fsLabels.has(SESSIONS[i].label)) return;
+    if(!fsLabels.has(SESSIONS[i].label)||s.att!=='SI') return;
     if(s.punt==='PUNT'){punt++;total_p++;}
     else if(s.punt==='TARD'){tard++;total_p++;}
   }));
@@ -593,9 +593,10 @@ function renderHeatmapPunt(){
     l.sessions.forEach((s,i)=>{
       const td=tr.insertCell();
       const isDimCell=currentSessions.size>0&&!activeLabels.has(SESSIONS[i].label);
-      const cls=s.punt==='PUNT'?'punt':s.punt==='TARD'?'tard':'empty';
+      const pv=s.att==='SI';
+      const cls=pv&&s.punt==='PUNT'?'punt':pv&&s.punt==='TARD'?'tard':'empty';
       td.className='hm-cell '+cls+(isDimCell?' dim':'');
-      td.textContent=s.punt==='PUNT'?'✓':s.punt==='TARD'?'⏰':'—';
+      td.textContent=pv&&s.punt==='PUNT'?'✓':pv&&s.punt==='TARD'?'⏰':'—';
     });
   });
 }
@@ -705,6 +706,7 @@ function renderChartPunt(){
   const data=SESSIONS.map((s,i)=>{
     let punt=0,tard=0;
     fl.forEach(l=>{
+      if(l.sessions[i].att!=='SI') return;
       if(l.sessions[i].punt==='PUNT') punt++;
       else if(l.sessions[i].punt==='TARD') tard++;
     });
@@ -1057,4 +1059,3 @@ window.addEventListener('load',init);
 </script>
 </body>
 </html>
-
