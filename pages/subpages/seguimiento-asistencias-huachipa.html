@@ -982,6 +982,23 @@ function switchNivel(nivel,el){
   if(currentView==='lider') renderLeaderView(currentLeader);
 }
 
+// ══════════ RESET FILTROS ══════════
+function resetAllFilters(){
+  currentSessions=new Set();
+  document.querySelectorAll('#sess-chips .sess-chip').forEach(c=>c.classList.remove('on'));
+  currentGrupos=new Set();
+  document.querySelectorAll('#grupo-chips .sess-chip').forEach(c=>c.classList.remove('on'));
+  currentNivel='todos';
+  document.querySelectorAll('#nivel-tabs .vtab').forEach((t,i)=>t.classList.toggle('on',i===0));
+  currentAttFilter='';
+  document.querySelectorAll('#att-chips .sess-chip').forEach((c,i)=>c.classList.toggle('on',i===0));
+  currentPuntFilter='';
+  document.querySelectorAll('#punt-chips .sess-chip').forEach((c,i)=>c.classList.toggle('on',i===0));
+  currentLeader='';
+  const sel=document.getElementById('sel-leader');
+  if(sel) sel.value='';
+}
+
 // ══════════ SWITCH VIEW ══════════
 function switchView(id,el){
   currentView=id;
@@ -989,6 +1006,10 @@ function switchView(id,el){
   el.classList.add('on');
   document.querySelectorAll('.view').forEach(v=>v.classList.remove('on'));
   document.getElementById('v-'+id).classList.add('on');
+
+  // Resetear todos los filtros al cambiar de vista
+  resetAllFilters();
+
   const isPunt=id==='puntualidad';
   const isLider=id==='lider';
   // Ocultar Estado en puntualidad y por líder, mostrar Punt. solo en puntualidad
@@ -1005,26 +1026,12 @@ function switchView(id,el){
   ['sep-lider','lbl-lider','sel-leader'].forEach(eid=>{
     const e=document.getElementById(eid); if(e) e.style.display=isLider?'':'none';
   });
-  // Al entrar a por líder, limpiar filtro Estado
-  if(isLider && currentAttFilter){
-    currentAttFilter='';
-    document.querySelectorAll('#att-chips .sess-chip').forEach((c,i)=>c.classList.toggle('on',i===0));
-  }
-  // Al entrar a puntualidad, forzar att=SI internamente (solo asistentes tienen puntualidad)
+  // En puntualidad, forzar att=SI internamente (solo asistentes tienen puntualidad)
   if(isPunt){
     currentAttFilter='SI';
     document.querySelectorAll('#att-chips .sess-chip').forEach((c,i)=>c.classList.toggle('on',i===1));
   }
-  // Al salir de puntualidad: limpiar filtro Punt. y resetear filtro Att.
-  if(!isPunt && currentPuntFilter){
-    currentPuntFilter='';
-    document.querySelectorAll('#punt-chips .sess-chip').forEach((c,i)=>c.classList.toggle('on',i===0));
-  }
-  // Al volver a General desde Puntualidad, resetear filtro Estado (att fue forzado a 'SI')
-  if(id==='general' && currentAttFilter){
-    currentAttFilter='';
-    document.querySelectorAll('#att-chips .sess-chip').forEach((c,i)=>c.classList.toggle('on',i===0));
-  }
+  populateSelect();
   renderKPIs();
   if(id==='lider') renderLeaderView(currentLeader);
   if(id==='general'){ renderHeatmap(); setTimeout(renderChart,50); }
