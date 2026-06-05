@@ -267,6 +267,7 @@ function buildLeadersFromCSV(rows) {
   const fi = (terms) => headers.findIndex(h => terms.some(t => h.includes(t)));
   const C = {
     col:    fi(['colaborador']),
+    planta: fi(['planta']),
     a1:     fi(['asistencia s1','asistencia s 1']),
     a2:     fi(['asistencia s2','asistencia s 2']),
     equipo: fi(['equipo']),
@@ -275,7 +276,14 @@ function buildLeadersFromCSV(rows) {
   };
   console.log('Columnas detectadas:', C);
 
-  const data = rows.slice(headerIdx + 1).filter(r => r.length > 3 && (r[C.col]||'').trim());
+  const data = rows.slice(headerIdx + 1).filter(r => {
+    if(r.length <= 3 || !(r[C.col]||'').trim()) return false;
+    if(C.planta >= 0){
+      const p = (r[C.planta]||'').normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase().trim();
+      if(!p.includes('huachipa')) return false;
+    }
+    return true;
+  });
 
   const withTeam = data.filter(r => {
     const eq = (r[C.equipo]||'').trim().toUpperCase().replace(/Í/g,'I').replace(/Ì/g,'I');
@@ -738,3 +746,5 @@ init();
 </script>
 </body>
 </html>
+
+      
