@@ -472,12 +472,7 @@ function renderKPIsAsist(){
   const nivelLbl = currentNivel==='todos'?'líderes':currentNivel==='intermedio'?'intermedios':'nuevos';
   const sessLbl = currentSessions.size===0 ? 'S1–S'+(SESSIONS.length||8)
     : [...currentSessions].sort().join(' + ');
-  document.getElementById('k-lideres').textContent = total;
-  document.getElementById('k-asist').textContent   = asist;
-  document.getElementById('k-faltas').textContent  = faltas;
-  document.getElementById('k-retir').textContent   = retirados;
-  document.getElementById('k-pct').textContent     = pct+'%';
-  // Restaurar clases de color y etiquetas originales (pueden haber cambiado en la vista Puntualidad)
+  // Restaurar clases y etiquetas
   document.getElementById('k-asist').className  = 'kv green';
   document.getElementById('k-faltas').className = 'kv red';
   document.getElementById('k-pct').className    = 'kv amber';
@@ -486,6 +481,32 @@ function renderKPIsAsist(){
   document.getElementById('kl-faltas').textContent = 'Faltas';
   document.getElementById('kl-pct').textContent   = '% Asistencia';
   document.getElementById('kl-retir').textContent  = 'Retirados';
+  // Valores según filtro activo — solo mostrar lo relevante, "—" en lo demás
+  if(!currentAttFilter){
+    document.getElementById('k-lideres').textContent = total;
+    document.getElementById('k-asist').textContent   = asist;
+    document.getElementById('k-faltas').textContent  = faltas;
+    document.getElementById('k-retir').textContent   = retirados;
+    document.getElementById('k-pct').textContent     = pct+'%';
+  } else if(currentAttFilter==='SI'){
+    document.getElementById('k-lideres').textContent = '—';
+    document.getElementById('k-asist').textContent   = asist;
+    document.getElementById('k-faltas').textContent  = '—';
+    document.getElementById('k-retir').textContent   = '—';
+    document.getElementById('k-pct').textContent     = '100%';
+  } else if(currentAttFilter==='NO'){
+    document.getElementById('k-lideres').textContent = '—';
+    document.getElementById('k-asist').textContent   = '—';
+    document.getElementById('k-faltas').textContent  = faltas;
+    document.getElementById('k-retir').textContent   = '—';
+    document.getElementById('k-pct').textContent     = '—';
+  } else { // RET
+    document.getElementById('k-lideres').textContent = '—';
+    document.getElementById('k-asist').textContent   = '—';
+    document.getElementById('k-faltas').textContent  = '—';
+    document.getElementById('k-retir').textContent   = retirados;
+    document.getElementById('k-pct').textContent     = '—';
+  }
   document.getElementById('hbadge').textContent    = total+' '+nivelLbl+' · '+sessLbl;
 }
 
@@ -504,18 +525,30 @@ function renderKPIsPunt(){
   const pct=total_p>0?Math.round(punt/total_p*100):0;
   const pctColor=pct>=80?'green':pct>=60?'amber':'red';
   const sessLbl=currentSessions.size===0?'S1–S'+(SESSIONS.length||8):[...currentSessions].sort().join(' + ');
-  document.getElementById('k-lideres').textContent  = total;
-  document.getElementById('k-asist').textContent    = punt;
   document.getElementById('k-asist').className      = 'kv green';
   document.getElementById('kl-asist').textContent   = 'Puntuales';
-  document.getElementById('k-faltas').textContent   = tard;
   document.getElementById('k-faltas').className     = 'kv amber';
   document.getElementById('kl-faltas').textContent  = 'Tardanzas';
-  document.getElementById('k-pct').textContent      = pct+'%';
-  document.getElementById('k-pct').className        = 'kv '+pctColor;
+  document.getElementById('k-pct').className        = 'kv '+(currentPuntFilter?'amber':pctColor);
   document.getElementById('kl-pct').textContent     = '% Puntualidad';
   document.getElementById('k-retir').textContent    = '—';
   document.getElementById('kl-retir').textContent   = '—';
+  if(!currentPuntFilter){
+    document.getElementById('k-lideres').textContent = total;
+    document.getElementById('k-asist').textContent   = punt;
+    document.getElementById('k-faltas').textContent  = tard;
+    document.getElementById('k-pct').textContent     = pct+'%';
+  } else if(currentPuntFilter==='PUNT'){
+    document.getElementById('k-lideres').textContent = '—';
+    document.getElementById('k-asist').textContent   = punt;
+    document.getElementById('k-faltas').textContent  = '—';
+    document.getElementById('k-pct').textContent     = '100%';
+  } else { // TARD
+    document.getElementById('k-lideres').textContent = '—';
+    document.getElementById('k-asist').textContent   = '—';
+    document.getElementById('k-faltas').textContent  = tard;
+    document.getElementById('k-pct').textContent     = '—';
+  }
   document.getElementById('hbadge').textContent     = total+' líderes · '+sessLbl;
 }
 
@@ -626,12 +659,15 @@ function renderChart(){
   const data=SESSIONS.map((s,i)=>{
     let si=0,no=0,ret=0;
     fl.forEach(l=>{
-      if(l.sessions[i].att==='SI')si++;
-      else if(l.sessions[i].att==='NO')no++;
-      else if(l.sessions[i].att==='RET')ret++;
+      const att=l.sessions[i].att;
+      if(currentAttFilter && att!==currentAttFilter) return;
+      if(att==='SI')si++;
+      else if(att==='NO')no++;
+      else if(att==='RET')ret++;
     });
-    const total=si+no; // RET excluido del denominador
-    return{label:s.label,si,no,ret,pct:total>0?Math.round(si/total*100):null,active:activeLabels.has(s.label)};
+    // % solo sin filtro (con filtro activo el % es redundante con la vista general)
+    const pct=!currentAttFilter&&(si+no)>0?Math.round(si/(si+no)*100):null;
+    return{label:s.label,si,no,ret,pct,active:activeLabels.has(s.label)};
   });
 
   const margin={top:14,right:32,bottom:32,left:34};
@@ -713,11 +749,13 @@ function renderChartPunt(){
     let punt=0,tard=0;
     fl.forEach(l=>{
       if(l.sessions[i].att!=='SI') return;
-      if(l.sessions[i].punt==='PUNT') punt++;
-      else if(l.sessions[i].punt==='TARD') tard++;
+      const pv=l.sessions[i].punt;
+      if(currentPuntFilter && pv!==currentPuntFilter) return;
+      if(pv==='PUNT') punt++;
+      else if(pv==='TARD') tard++;
     });
-    const total=punt+tard;
-    return{label:s.label,punt,tard,pct:total>0?Math.round(punt/total*100):null,active:activeLabels.has(s.label)};
+    const pct=!currentPuntFilter&&(punt+tard)>0?Math.round(punt/(punt+tard)*100):null;
+    return{label:s.label,punt,tard,pct,active:activeLabels.has(s.label)};
   });
 
   d3.select(svgEl).selectAll('*').remove();
