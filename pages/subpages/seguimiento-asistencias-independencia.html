@@ -198,9 +198,9 @@ table.hm th,table.hm td{border:1px solid #f1f5f9;white-space:nowrap;}
     <div class="sess-chip" onclick="switchPuntFilter('PUNT',this)">✓ Puntual</div>
     <div class="sess-chip" onclick="switchPuntFilter('TARD',this)">⏰ Tarde</div>
   </div>
-  <span class="sep">|</span>
-  <span class="ctrl-label">Líder</span>
-  <select class="sel-leader" id="sel-leader" onchange="onLeaderChange()">
+  <span class="sep" id="sep-lider" style="display:none;">|</span>
+  <span class="ctrl-label" id="lbl-lider" style="display:none;">Líder</span>
+  <select class="sel-leader" id="sel-leader" onchange="onLeaderChange()" style="display:none;">
     <option value="">— Seleccionar —</option>
   </select>
   <button class="export-btn" onclick="exportExcel()" style="margin-left:auto;">⬇ Exportar Excel</button>
@@ -978,12 +978,17 @@ function switchView(id,el){
   document.querySelectorAll('.view').forEach(v=>v.classList.remove('on'));
   document.getElementById('v-'+id).classList.add('on');
   const isPunt=id==='puntualidad';
+  const isLider=id==='lider';
   // Ocultar Estado en puntualidad, mostrar Punt. solo en puntualidad
   ['sep-att','lbl-att','att-chips'].forEach(eid=>{
     const e=document.getElementById(eid); if(e) e.style.display=isPunt?'none':'';
   });
   ['sep-punt-f','lbl-punt-f','punt-chips'].forEach(eid=>{
     const e=document.getElementById(eid); if(e) e.style.display=isPunt?'':'none';
+  });
+  // Mostrar filtro Líder solo en vista Por líder
+  ['sep-lider','lbl-lider','sel-leader'].forEach(eid=>{
+    const e=document.getElementById(eid); if(e) e.style.display=isLider?'':'none';
   });
   // Al entrar a puntualidad, forzar att=SI internamente (solo asistentes tienen puntualidad)
   if(isPunt){
