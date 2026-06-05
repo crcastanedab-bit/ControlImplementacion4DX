@@ -81,6 +81,8 @@ table.hm th,table.hm td{border:1px solid #f1f5f9;white-space:nowrap;}
 .sess-chip{font-size:.63rem;padding:3px 9px;border-radius:6px;cursor:pointer;border:1px solid #e2e8f0;background:#f8fafc;color:#64748b;font-weight:700;transition:all .12s;}
 .sess-chip:hover{border-color:#93c5fd;color:#1d4ed8;}
 .sess-chip.on{background:#1d4ed8;border-color:#1d4ed8;color:#fff;}
+.export-btn{font-size:.7rem;padding:4px 13px;border-radius:6px;cursor:pointer;border:1px solid #bbf7d0;background:#f0fdf4;color:#16a34a;font-weight:700;transition:all .12s;white-space:nowrap;}
+.export-btn:hover{background:#dcfce7;border-color:#86efac;}
 
 /* ─── CHART ─── */
 .chart-wrap{background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:16px 20px;margin-bottom:14px;}
@@ -201,6 +203,7 @@ table.hm th,table.hm td{border:1px solid #f1f5f9;white-space:nowrap;}
   <select class="sel-leader" id="sel-leader" onchange="onLeaderChange()">
     <option value="">— Seleccionar —</option>
   </select>
+  <button class="export-btn" onclick="exportExcel()" style="margin-left:auto;">⬇ Exportar Excel</button>
 </div>
 
 <!-- ── VISTA GENERAL ── -->
@@ -249,6 +252,7 @@ table.hm th,table.hm td{border:1px solid #f1f5f9;white-space:nowrap;}
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script>
 
 // ══════════ CONFIG ══════════
@@ -908,6 +912,45 @@ function switchPuntFilter(val,el){
   populateSelect();
 }
 
+// ══════════ EXPORTAR EXCEL ══════════
+function exportExcel(){
+  if(typeof XLSX==='undefined'){ alert('Librería Excel no cargada. Recarga la página.'); return; }
+  const fl  = filteredLeaders();
+  const fs  = filteredSessions();
+  const isPunt = currentView==='puntualidad';
+  const viewLabel = isPunt ? 'Puntualidad' : 'Asistencias';
+
+  // Cabeceras
+  const headers = ['Nombre','Nivel','Grupo',...fs.map(s=>s.label)];
+
+  // Filas
+  const rows = fl.map(l=>{
+    const cols = fs.map(s=>{
+      const idx = SESSIONS.findIndex(ss=>ss.label===s.label);
+      const sd  = l.sessions[idx];
+      if(!sd) return '—';
+      if(isPunt) return sd.punt==='PUNT'?'Puntual':sd.punt==='TARD'?'Tarde':'—';
+      return sd.att==='SI'?'Asistió':sd.att==='NO'?'Faltó':sd.att==='RET'?'Retirado':'—';
+    });
+    return [l.name, l.nivel||'—', l.grupo||'—', ...cols];
+  });
+
+  // Hoja
+  const ws = XLSX.utils.aoa_to_sheet([headers,...rows]);
+  ws['!cols'] = [{wch:32},{wch:14},{wch:7},...fs.map(()=>({wch:12}))];
+  ws['!freeze'] = {xSplit:0,ySplit:1};
+
+  // Workbook
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, viewLabel);
+
+  // Nombre de archivo
+  const planta = (document.querySelector('.hplant')||{}).textContent||'Planta';
+  const sessTag = currentSessions.size>0?'_'+[...currentSessions].sort().join('-'):'';
+  const fecha   = new Date().toISOString().slice(0,10);
+  XLSX.writeFile(wb, `${planta.trim()}_${viewLabel}${sessTag}_${fecha}.xlsx`);
+}
+
 // ══════════ SWITCH NIVEL ══════════
 function switchNivel(nivel,el){
   currentNivel=nivel;
@@ -1014,3 +1057,4 @@ window.addEventListener('load',init);
 </script>
 </body>
 </html>
+
