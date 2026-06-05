@@ -86,6 +86,7 @@ table.hm th,table.hm td{border:1px solid #f1f5f9;white-space:nowrap;}
 .leg-si{background:#dcfce7;color:#166534;border-color:#bbf7d0;}
 .leg-no{background:#fee2e2;color:#991b1b;border-color:#fecaca;}
 .leg-ret{background:#fff7ed;color:#c2410c;border-color:#fed7aa;}
+.nb-grp{background:#f1f5f9;color:#475569;border-color:#e2e8f0;font-size:.48rem;}
 #bar-canvas{width:100%;display:block;}
 
 /* ─── VISTA POR LÍDER ─── */
@@ -172,6 +173,9 @@ table.hm th,table.hm td{border:1px solid #f1f5f9;white-space:nowrap;}
   <span class="ctrl-label">Sesión</span>
   <div style="display:flex;gap:4px;flex-wrap:wrap;" id="sess-chips"></div>
   <span class="sep">|</span>
+  <span class="ctrl-label">Grupo</span>
+  <div style="display:flex;gap:4px;flex-wrap:wrap;" id="grupo-chips"></div>
+  <span class="sep">|</span>
   <span class="ctrl-label">Líder</span>
   <select class="sel-leader" id="sel-leader" onchange="onLeaderChange()">
     <option value="">— Seleccionar —</option>
@@ -215,7 +219,8 @@ const CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vSI4G-2KDHTK9i7
 // ══════════ GLOBALS ══════════
 let LEADERS = [], SESSIONS = [], DATES = [];
 let currentView = 'general', currentLeader = '', currentNivel = 'todos';
-let currentSessions = new Set(); // vacío = todas las sesiones
+let currentSessions = new Set();
+let currentGrupos   = new Set(); // vacío = todos los grupos // vacío = todas las sesiones
 
 // ══════════ CSV PARSER (robusto) ══════════
 function nrm(s){return(s||'').trim().toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'');}
@@ -262,6 +267,7 @@ function buildFromCSV(rows){
   const colPlanta    = fi(['planta']);
   const colNombre    = fi(['colaborador']);
   const colNivel     = fi(['nivel']);
+  const colGrupo     = fi(['grupoplanta','grupo planta','grupo']);
 
   // ── 3. Detectar TODAS las sesiones dinámicamente ──
   // Busca headers con patrón: "asistencia s1", "asistencia s 1", "asiste s1", etc.
@@ -310,6 +316,7 @@ function buildFromCSV(rows){
     name:  (r[colNombre]||'').trim(),
     short: makeShort((r[colNombre]||'').trim()),
     nivel: colNivel>=0 ? (r[colNivel]||'').trim() : '',
+    grupo: colGrupo>=0 ? (r[colGrupo]||'').trim() : '',
     sessions: SESSIONS.map(s=>({
       label:  s.label,
       att:    normalizeAtt(r[s.attIdx]||''),
@@ -336,13 +343,21 @@ function makeAbbrev(full){
 }
 
 function filteredLeaders(){
-  if(currentNivel==='todos') return LEADERS;
-  return LEADERS.filter(l=>{
-    const n=nrm(l.nivel);
-    if(currentNivel==='intermedio') return n.includes('intermed');
-    if(currentNivel==='nuevo') return n.includes('nuevo')||n==='new';
-    return true;
-  });
+  let result = LEADERS;
+  // Filtro por nivel
+  if(currentNivel!=='todos'){
+    result=result.filter(l=>{
+      const n=nrm(l.nivel);
+      if(currentNivel==='intermedio') return n.includes('intermed');
+      if(currentNivel==='nuevo') return n.includes('nuevo')||n==='new';
+      return true;
+    });
+  }
+  // Filtro por grupo
+  if(currentGrupos.size>0){
+    result=result.filter(l=>currentGrupos.has(l.grupo));
+  }
+  return result;
 }
 
 function filteredSessions(){
@@ -412,7 +427,7 @@ function renderHeatmap(){
   fl.forEach(l=>{
     const tr=tbody.insertRow();
     const th=document.createElement('th');th.className='hm-row-head';
-    th.innerHTML=l.short+nivelBadgeHtml(l.nivel);th.title=l.name;
+    th.innerHTML=l.short+nivelBadgeHtml(l.nivel)+(l.grupo?`<span class="nivel-badge nb-grp">G${l.grupo}</span>`:'');th.title=l.name;
     tr.appendChild(th);
     l.sessions.forEach((s,i)=>{
       const td=tr.insertCell();
@@ -621,6 +636,28 @@ function switchSession(label,el){
   if(currentView==='general') setTimeout(renderChart,50);
 }
 
+// ══════════ GRUPO CHIPS ══════════
+function populateGrupoChips(){
+  const wrap=document.getElementById('grupo-chips');
+  if(!wrap) return;
+  wrap.innerHTML='';
+  const grupos=[...new Set(LEADERS.map(l=>l.grupo).filter(g=>g))].sort((a,b)=>+a-+b);
+  grupos.forEach(g=>{
+    const chip=document.createElement('div');
+    chip.className='sess-chip';
+    chip.textContent='G'+g;
+    chip.title='Grupo '+g;
+    chip.onclick=()=>switchGrupo(g,chip);
+    wrap.appendChild(chip);
+  });
+}
+function switchGrupo(g,el){
+  if(currentGrupos.has(g)){currentGrupos.delete(g);el.classList.remove('on');}
+  else{currentGrupos.add(g);el.classList.add('on');}
+  renderKPIs(); renderHeatmap();
+  if(currentView==='general') setTimeout(renderChart,50);
+}
+
 // ══════════ SWITCH NIVEL ══════════
 function switchNivel(nivel,el){
   currentNivel=nivel;
@@ -671,6 +708,7 @@ async function init(){
   }
 
   populateSessions();
+  populateGrupoChips();
   renderKPIs();
   populateSelect();
   renderHeatmap();
@@ -686,6 +724,7 @@ async function init(){
       const nv  = buildFromCSV(parseCSV(tx2));
       if(JSON.stringify(nv)!==JSON.stringify(LEADERS)){
         LEADERS=nv;
+        populateGrupoChips();
         renderKPIs();
         if(currentView==='general'){ renderHeatmap(); setTimeout(renderChart,50); }
         else renderLeaderView(currentLeader);
