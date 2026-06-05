@@ -3,7 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>4DX · Seguimiento de Asistencias · Ate</title>
+<title>4DX · Tiempo de Inversión · Ate</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0;}
 body{background:#f1f5f9;color:#1e293b;font-family:'Segoe UI',Arial,sans-serif;min-height:100vh;}
@@ -25,1063 +26,738 @@ header{background:linear-gradient(90deg,#1e3a8a,#1d4ed8,#2563eb);padding:11px 24
 .hbadge{background:#ffffff20;border:1px solid #ffffff40;border-radius:6px;padding:3px 10px;font-size:.67rem;color:#fff;white-space:nowrap;}
 
 /* ─── KPI STRIP ─── */
-.kpi-row{background:#fff;border-bottom:2px solid #e2e8f0;display:flex;}
-.kpi{flex:1;padding:12px 16px;text-align:center;border-right:1px solid #f1f5f9;}
+.kpi-row{background:#fff;border-bottom:2px solid #e2e8f0;display:flex;flex-wrap:wrap;}
+.kpi{flex:1;min-width:120px;padding:12px 16px;text-align:center;border-right:1px solid #f1f5f9;}
 .kpi:last-child{border-right:none;}
 .kv{font-size:1.4rem;font-weight:800;line-height:1;}
 .kl{font-size:.59rem;color:#94a3b8;text-transform:uppercase;letter-spacing:.4px;margin-top:3px;}
-.kv.blue{color:#2563eb;} .kv.green{color:#16a34a;} .kv.red{color:#dc2626;} .kv.amber{color:#d97706;} .kv.orange{color:#ea580c;}
+.kv.blue{color:#2563eb;} .kv.green{color:#16a34a;} .kv.red{color:#dc2626;} .kv.amber{color:#d97706;}
 
 /* ─── CONTROLES ─── */
 .ctrl-bar{background:#fff;border-bottom:1px solid #e2e8f0;padding:8px 20px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
-.ctrl-label{font-size:.65rem;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:#94a3b8;}
+.ctrl-label{font-size:.65rem;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:#94a3b8;white-space:nowrap;}
+.ctrl-sep{width:1px;height:20px;background:#e2e8f0;flex-shrink:0;}
 .view-tabs{display:flex;gap:4px;}
-.vtab{font-size:.7rem;padding:4px 12px;border-radius:6px;cursor:pointer;border:1px solid #e2e8f0;background:#f8fafc;color:#64748b;transition:all .12s;font-weight:600;}
+.vtab{font-size:.7rem;padding:4px 12px;border-radius:6px;cursor:pointer;border:1px solid #e2e8f0;background:#f8fafc;color:#64748b;transition:all .12s;font-weight:600;user-select:none;}
 .vtab.on{background:#eff6ff;border-color:#93c5fd;color:#1d4ed8;}
-.sel-leader{font-size:.72rem;padding:5px 10px;border:1px solid #e2e8f0;border-radius:6px;outline:none;color:#1e293b;background:#f8fafc;cursor:pointer;}
-.sel-leader:focus{border-color:#93c5fd;}
-.sep{color:#e2e8f0;font-size:.8rem;}
+.vtab:hover:not(.on){background:#f1f5f9;}
+.leader-sel{font-size:.72rem;border:1px solid #e2e8f0;border-radius:6px;padding:4px 8px;color:#1e293b;background:#fff;cursor:pointer;outline:none;max-width:200px;}
+.leader-sel:focus{border-color:#93c5fd;}
 
-/* ─── VISTAS ─── */
-.view{display:none;padding:18px 20px;}
-.view.on{display:block;}
+/* ─── CONTENT WRAPPER ─── */
+.content{max-width:900px;margin:0 auto;width:100%;padding:24px 24px 0;}
 
-/* ─── HEATMAP ─── */
-.hm-wrap{overflow:auto;background:#fff;border:1px solid #e2e8f0;border-radius:10px;}
-table.hm{border-collapse:collapse;font-size:.62rem;min-width:100%;}
-table.hm th,table.hm td{border:1px solid #f1f5f9;white-space:nowrap;}
-.hm-row-head{padding:6px 12px;background:#f8fafc;color:#475569;font-weight:600;position:sticky;left:0;z-index:3;min-width:160px;font-size:.65rem;border-right:2px solid #e2e8f0;}
-.hm-col-head{padding:5px 6px 4px;background:#f8fafc;color:#64748b;font-weight:700;text-align:center;position:sticky;top:0;z-index:2;min-width:110px;}
-.hm-col-head .snum{font-size:.72rem;color:#1d4ed8;display:block;margin-top:3px;}
-/* ─── Fechas por nivel sobre el número de sesión ─── */
-.sh-dates{display:flex;flex-direction:column;gap:2px;margin-bottom:1px;}
-.sh-date{font-size:.51rem;font-weight:600;border-radius:4px;padding:2px 5px;display:flex;align-items:center;gap:3px;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;}
-.sh-date-int{background:#eff6ff;color:#1d4ed8;}
-.sh-date-nvo{background:#f0fdf4;color:#16a34a;}
-.sh-tag{font-size:.47rem;font-weight:800;opacity:.7;flex-shrink:0;letter-spacing:.3px;}
-/* ─── Badge nivel en fila del heatmap ─── */
-.nivel-badge{font-size:.52rem;padding:1px 5px;border-radius:5px;font-weight:700;margin-left:4px;vertical-align:middle;border:1px solid;}
-.nb-int{background:#eff6ff;color:#1d4ed8;border-color:#bfdbfe;}
-.nb-nvo{background:#f0fdf4;color:#16a34a;border-color:#bbf7d0;}
-.hm-cell{width:110px;min-width:110px;height:28px;text-align:center;vertical-align:middle;font-weight:700;font-size:.65rem;cursor:default;}
-.hm-cell.si{background:#dcfce7;color:#16a34a;}
-.hm-cell.no{background:#fee2e2;color:#dc2626;cursor:pointer;}
-.hm-cell.no:hover{background:#fecaca;}
-.hm-cell.ret{background:#fff7ed;color:#ea580c;}
-.hm-cell.ret:hover{background:#ffedd5;}
-.hm-cell.punt{background:#dcfce7;color:#16a34a;}
-.hm-cell.tard{background:#fef3c7;color:#b45309;}
-.hm-cell.tard:hover{background:#fde68a;}
-.leg-punt{background:#dcfce7;color:#166534;border-color:#bbf7d0;}
-.leg-tard{background:#fef3c7;color:#92400e;border-color:#fde68a;}
-.hm-cell.empty{background:#f8fafc;color:#cbd5e1;}
-.hm-cell.dim,.hm-col-head.dim{opacity:.25;pointer-events:none;}
-.corner{position:sticky;top:0;left:0;z-index:4;background:#f1f5f9;padding:6px 12px;font-size:.58rem;color:#94a3b8;border-right:2px solid #e2e8f0;}
-/* ─── CHIPS DE SESIÓN ─── */
-.sess-chip{font-size:.63rem;padding:3px 9px;border-radius:6px;cursor:pointer;border:1px solid #e2e8f0;background:#f8fafc;color:#64748b;font-weight:700;transition:all .12s;}
-.sess-chip:hover{border-color:#93c5fd;color:#1d4ed8;}
-.sess-chip.on{background:#1d4ed8;border-color:#1d4ed8;color:#fff;}
-.export-btn{font-size:.7rem;padding:4px 13px;border-radius:6px;cursor:pointer;border:1px solid #bbf7d0;background:#f0fdf4;color:#16a34a;font-weight:700;transition:all .12s;white-space:nowrap;}
-.export-btn:hover{background:#dcfce7;border-color:#86efac;}
+/* ─── SECTION BLOCK ─── */
+.sec-block{background:#fff;border:1px solid #e2e8f0;border-radius:14px;overflow:hidden;margin-bottom:20px;}
+.sec-block-hd{padding:14px 20px 0;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;}
+.sec-block-title{font-size:.8rem;font-weight:700;color:#1e293b;}
+.meta-badge{font-size:.62rem;background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe;border-radius:6px;padding:2px 8px;font-weight:700;}
+.sec-block-body{padding:16px 20px 20px;}
 
 /* ─── CHART ─── */
-.chart-wrap{background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:16px 20px;margin-bottom:14px;}
-.chart-header{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:12px;}
-.chart-title{font-size:.72rem;font-weight:700;color:#475569;margin:0;}
-.chart-legend{display:flex;gap:8px;flex-shrink:0;}
-.leg-item{font-size:.61rem;font-weight:700;padding:2px 9px;border-radius:6px;border:1px solid;}
-.leg-si{background:#dcfce7;color:#166534;border-color:#bbf7d0;}
-.leg-no{background:#fee2e2;color:#991b1b;border-color:#fecaca;}
-.leg-ret{background:#fff7ed;color:#c2410c;border-color:#fed7aa;}
-.nb-grp{background:#f1f5f9;color:#475569;border-color:#e2e8f0;font-size:.48rem;}
-#bar-canvas{width:100%;display:block;}
+.chart-wrap{width:100%;overflow:hidden;}
+#bar-canvas{display:block;}
 
-/* ─── VISTA POR LÍDER ─── */
-.leader-header{background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:16px 20px;margin-bottom:14px;display:flex;align-items:center;gap:14px;}
-.lh-avatar{width:42px;height:42px;background:#eff6ff;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:1.2rem;flex-shrink:0;}
-.lh-name{font-size:.92rem;font-weight:700;color:#1e293b;}
-.lh-sub{font-size:.67rem;color:#64748b;margin-top:2px;}
-.lh-pills{display:flex;gap:5px;margin-top:6px;flex-wrap:wrap;}
-.lpill{font-size:.6rem;padding:2px 8px;border-radius:8px;font-weight:600;border:1px solid;}
-.lpill-g{background:#f0fdf4;color:#16a34a;border-color:#bbf7d0;}
-.lpill-r{background:#fef2f2;color:#dc2626;border-color:#fecaca;}
-.lpill-n{background:#f8fafc;color:#94a3b8;border-color:#e2e8f0;}
+/* ─── HEATMAP ─── */
+.hm-scroll{overflow-x:auto;}
+.hm-table{border-collapse:collapse;width:100%;min-width:400px;}
+.hm-table th,.hm-table td{text-align:center;vertical-align:middle;}
+.hm-name-head{text-align:left;padding:8px 12px;font-size:.62rem;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#94a3b8;background:#f8fafc;border-bottom:2px solid #e2e8f0;min-width:130px;white-space:nowrap;}
+.hm-col-head{padding:6px 10px;font-size:.67rem;background:#f8fafc;border-bottom:2px solid #e2e8f0;min-width:80px;border-left:1px solid #f1f5f9;}
+.hm-q-label{font-weight:800;color:#1e293b;font-size:.7rem;}
+.hm-q-sess{font-size:.55rem;color:#94a3b8;font-weight:600;margin-top:1px;}
+.hm-name{text-align:left;padding:7px 12px;border-bottom:1px solid #f8fafc;font-size:.68rem;}
+.hm-name-text{font-weight:600;color:#1e293b;}
+.hm-cell{padding:7px 10px;border-bottom:1px solid #f8fafc;border-left:1px solid #f1f5f9;font-size:.72rem;font-weight:700;border-radius:4px;white-space:nowrap;}
+.hm-table tbody tr:hover .hm-name{background:#f8fafc;}
+.hm-table tbody tr:hover .hm-cell{filter:brightness(.97);}
 
-.sessions-timeline{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:10px;}
-.sess-card{background:#fff;border:1px solid #e2e8f0;border-radius:10px;overflow:hidden;}
-.sess-card.si{border-top:3px solid #22c55e;}
-.sess-card.no{border-top:3px solid #f87171;}
-.sess-card.ret{border-top:3px solid #fb923c;}
-.sess-card.empty{border-top:3px solid #e2e8f0;}
-.sc-head{padding:10px 12px 8px;display:flex;align-items:center;justify-content:space-between;}
-.sc-snum{font-size:.7rem;font-weight:700;color:#64748b;}
-.sc-badge{font-size:.65rem;font-weight:700;padding:2px 8px;border-radius:6px;}
-.sc-badge.si{background:#f0fdf4;color:#16a34a;}
-.sc-badge.no{background:#fef2f2;color:#dc2626;}
-.sc-badge.ret{background:#fff7ed;color:#ea580c;}
-.sc-badge.empty{background:#f8fafc;color:#94a3b8;}
-.sc-body{padding:0 12px 12px;}
-.sc-date{font-size:.59rem;color:#94a3b8;margin-bottom:5px;}
-.sc-motivo{font-size:.67rem;color:#64748b;line-height:1.4;background:#f8fafc;padding:6px 8px;border-radius:6px;border-left:3px solid #f87171;}
-.sc-motivo.empty-m{border-left-color:#e2e8f0;color:#94a3b8;font-style:italic;}
+/* ─── NIVEL BADGES ─── */
+.nivel-badge{font-size:.52rem;padding:1px 5px;border-radius:5px;font-weight:700;margin-left:5px;border:1px solid;vertical-align:middle;}
+.nb-int{background:#eff6ff;color:#1d4ed8;border-color:#bfdbfe;}
+.nb-nvo{background:#f0fdf4;color:#16a34a;border-color:#bbf7d0;}
 
-/* ─── TOOLTIP ─── */
-.tooltip{position:fixed;background:#1e293b;color:#fff;font-size:.68rem;padding:8px 12px;border-radius:8px;pointer-events:none;opacity:0;transition:opacity .12s;z-index:500;max-width:240px;line-height:1.4;}
-.tooltip.show{opacity:1;}
+/* ─── LEGEND ─── */
+.perf-legend{display:flex;gap:8px;flex-wrap:wrap;align-items:center;}
+.pleg{display:flex;align-items:center;gap:4px;font-size:.6rem;font-weight:600;}
+.pleg-dot{width:9px;height:9px;border-radius:3px;flex-shrink:0;}
+
+/* ─── INDIVIDUAL VIEW ─── */
+.leader-hero{padding:18px 20px 14px;border-bottom:1px solid #e2e8f0;display:flex;align-items:center;gap:10px;}
+.lh-name{font-size:1rem;font-weight:800;color:#1e293b;}
+.q-cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:14px;padding:20px;}
+.q-card{border-radius:12px;border:1px solid #e2e8f0;overflow:hidden;background:#fff;}
+.qc-top{padding:14px 16px 10px;}
+.qc-label{font-size:.75rem;font-weight:800;color:#1e293b;margin-bottom:1px;}
+.qc-sessions{font-size:.58rem;color:#94a3b8;font-weight:600;margin-bottom:6px;}
+.qc-hours{font-size:1.4rem;font-weight:900;line-height:1;}
+.qc-status{font-size:.6rem;font-weight:700;margin-top:3px;}
+.qc-bar-wrap{padding:8px 14px 12px;border-top:1px solid #f1f5f9;}
+.qc-bar-track{width:100%;height:8px;background:#f1f5f9;border-radius:4px;position:relative;overflow:hidden;}
+.qc-bar-fill{height:100%;border-radius:4px;transition:width .4s;}
+.qc-bar-labels{display:flex;justify-content:space-between;margin-top:4px;}
+
+/* ─── QUINCENA CHIPS ─── */
+.sess-chip{font-size:.63rem;padding:3px 9px;border-radius:6px;cursor:pointer;border:1px solid #e2e8f0;background:#f8fafc;color:#64748b;font-weight:700;user-select:none;transition:all .12s;}
+.sess-chip.on{background:#1d4ed8;border-color:#1d4ed8;color:#fff;}
+.sess-chip:hover:not(.on){background:#f1f5f9;}
+.hm-col-head.dim,.hm-cell.dim{opacity:.2;pointer-events:none;}
 
 /* ─── EMPTY STATE ─── */
-.empty-state{text-align:center;padding:40px 20px;color:#94a3b8;font-size:.78rem;}
-.empty-state .ei{font-size:2.5rem;margin-bottom:8px;}
+.empty-state{padding:40px;text-align:center;color:#94a3b8;font-size:.78rem;}
 
-@media(max-width:640px){.kpi-row{flex-wrap:wrap;}.kpi{min-width:50%;}.sessions-timeline{grid-template-columns:1fr 1fr;}}
+/* ─── FOOTER ─── */
+footer{margin-top:36px;padding:20px;text-align:center;font-size:.62rem;color:#94a3b8;border-top:1px solid #e2e8f0;}
+
+@media(max-width:640px){
+  .content{padding:16px 12px 0;}
+  .kpi{min-width:90px;padding:10px 8px;}
+  .kv{font-size:1.1rem;}
+  .q-cards{grid-template-columns:1fr 1fr;}
+  .ctrl-bar{gap:7px;}
+}
 </style>
 </head>
 <body>
 
-<div id="loading"><div class="spin"></div><div class="spin-lbl">Cargando asistencias…</div></div>
-<div class="tooltip" id="tooltip"></div>
+<!-- LOADING -->
+<div id="loading">
+  <div class="spin"></div>
+  <div class="spin-lbl">Cargando datos…</div>
+</div>
 
-<!-- ── HEADER ── -->
+<!-- HEADER -->
 <header>
   <a href="../ate.html" class="back">← Ate</a>
   <div class="hdiv"></div>
   <div class="htitles">
-    <div class="hplant">Planta Ate</div>
-    <div class="htitle">Seguimiento de Asistencias</div>
+    <div class="hplant">Planta · Ate</div>
+    <div class="htitle">Tiempo de Inversión en Iniciativas</div>
   </div>
-  <div class="hbadge" id="hbadge">S1 – S8</div>
+  <div class="hbadge">4DX · 2026-1</div>
   <span id="last-update" style="font-size:.55rem;color:#93c5fd;white-space:nowrap;"></span>
 </header>
 
-<!-- ── KPIs ── -->
-<div class="kpi-row">
-  <div class="kpi"><div class="kv blue" id="k-lideres">—</div><div class="kl" id="kl-lideres">Líderes</div></div>
-  <div class="kpi"><div class="kv green" id="k-asist">—</div><div class="kl" id="kl-asist">Asistencias</div></div>
-  <div class="kpi"><div class="kv red" id="k-faltas">—</div><div class="kl" id="kl-faltas">Faltas</div></div>
-  <div class="kpi"><div class="kv amber" id="k-pct">—</div><div class="kl" id="kl-pct">% Asistencia</div></div>
-  <div class="kpi"><div class="kv orange" id="k-retir">—</div><div class="kl" id="kl-retir">Retirados</div></div>
+<!-- KPI STRIP -->
+<div class="kpi-row" id="kpi-row">
+  <div class="kpi"><div class="kv blue">—</div><div class="kl">Líderes con datos</div></div>
+  <div class="kpi"><div class="kv blue">—</div><div class="kl">Promedio última Q</div></div>
+  <div class="kpi"><div class="kv blue">—</div><div class="kl">Quincenas activas</div></div>
+  <div class="kpi"><div class="kv blue">—</div><div class="kl">% en meta</div></div>
 </div>
 
-<!-- ── CONTROLES ── -->
+<!-- CONTROLES -->
 <div class="ctrl-bar">
   <span class="ctrl-label">Vista</span>
-  <div class="view-tabs">
-    <div class="vtab on" onclick="switchView('general',this)">📊 General</div>
-    <div class="vtab" onclick="switchView('lider',this)">👤 Por líder</div>
-    <div class="vtab" onclick="switchView('puntualidad',this)">⏱ Puntualidad</div>
+  <div class="view-tabs" id="ctrl-view">
+    <div class="vtab on" onclick="switchView('general',this)">General</div>
+    <div class="vtab" onclick="switchView('individual',this)">Individual</div>
   </div>
-  <span class="sep">|</span>
+  <div class="ctrl-sep"></div>
   <span class="ctrl-label">Nivel</span>
-  <div class="view-tabs" id="nivel-tabs">
+  <div class="view-tabs" id="ctrl-nivel">
     <div class="vtab on" onclick="switchNivel('todos',this)">Todos</div>
     <div class="vtab" onclick="switchNivel('intermedio',this)">Intermedios</div>
     <div class="vtab" onclick="switchNivel('nuevo',this)">Nuevos</div>
   </div>
-  <span class="sep">|</span>
-  <span class="ctrl-label">Sesión</span>
-  <div style="display:flex;gap:4px;flex-wrap:wrap;" id="sess-chips"></div>
-  <span class="sep">|</span>
-  <span class="ctrl-label">Grupo</span>
-  <div style="display:flex;gap:4px;flex-wrap:wrap;" id="grupo-chips"></div>
-  <span class="sep" id="sep-att">|</span>
-  <span class="ctrl-label" id="lbl-att">Estado</span>
-  <div style="display:flex;gap:4px;flex-wrap:wrap;" id="att-chips">
-    <div class="sess-chip on" onclick="switchAttFilter('',this)">Todos</div>
-    <div class="sess-chip" onclick="switchAttFilter('SI',this)">✓ Asistió</div>
-    <div class="sess-chip" onclick="switchAttFilter('NO',this)">✗ Faltó</div>
-    <div class="sess-chip" onclick="switchAttFilter('RET',this)">↩ Retirado</div>
-  </div>
-  <span class="sep" id="sep-punt-f" style="display:none;">|</span>
-  <span class="ctrl-label" id="lbl-punt-f" style="display:none;">Punt.</span>
-  <div id="punt-chips" style="display:none;gap:4px;flex-wrap:wrap;">
-    <div class="sess-chip on" onclick="switchPuntFilter('',this)">Todos</div>
-    <div class="sess-chip" onclick="switchPuntFilter('PUNT',this)">✓ Puntual</div>
-    <div class="sess-chip" onclick="switchPuntFilter('TARD',this)">⏰ Tarde</div>
-  </div>
-  <span class="sep" id="sep-lider" style="display:none;">|</span>
-  <span class="ctrl-label" id="lbl-lider" style="display:none;">Líder</span>
-  <select class="sel-leader" id="sel-leader" onchange="onLeaderChange()" style="display:none;">
-    <option value="">— Seleccionar —</option>
-  </select>
-  <button class="export-btn" onclick="exportExcel()" style="margin-left:auto;">⬇ Exportar Excel</button>
+  <div class="ctrl-sep"></div>
+  <span class="ctrl-label">Quincena</span>
+  <div style="display:flex;gap:4px;flex-wrap:wrap;" id="q-chips"></div>
+  <div class="ctrl-sep" id="sel-sep" style="display:none"></div>
+  <span class="ctrl-label" id="sel-lbl" style="display:none">Líder</span>
+  <select class="leader-sel" id="leader-select" style="display:none"></select>
 </div>
 
-<!-- ── VISTA GENERAL ── -->
-<div class="view on" id="v-general">
+<!-- MAIN CONTENT -->
+<div class="content">
 
-  <div class="chart-wrap">
-    <div class="chart-header">
-      <div class="chart-title" id="chart-title">Asistencia por sesión — todos los líderes</div>
-      <div class="chart-legend">
-        <span class="leg-item leg-si">✓ Asistió</span>
-        <span class="leg-item leg-no">✗ Faltó</span>
-        <span class="leg-item leg-ret">↩ Retirado</span>
+  <!-- ── VISTA GENERAL ── -->
+  <div id="view-general">
+
+    <!-- Chart -->
+    <div class="sec-block">
+      <div class="sec-block-hd">
+        <div class="sec-block-title">Horas promedio por quincena</div>
+        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+          <div class="perf-legend">
+            <div class="pleg"><div class="pleg-dot" style="background:#16a34a;"></div>≥ meta</div>
+            <div class="pleg"><div class="pleg-dot" style="background:#d97706;"></div>80 %</div>
+            <div class="pleg"><div class="pleg-dot" style="background:#ea580c;"></div>50 %</div>
+            <div class="pleg"><div class="pleg-dot" style="background:#dc2626;"></div>&lt; 50 %</div>
+          </div>
+          <span class="meta-badge" id="meta-badge">META — h</span>
+        </div>
+      </div>
+      <div class="sec-block-body">
+        <div class="chart-wrap">
+          <svg id="bar-canvas"></svg>
+        </div>
       </div>
     </div>
-    <svg id="bar-canvas"></svg>
-  </div>
 
-  <div class="hm-wrap">
-    <table class="hm" id="hm-table"></table>
-  </div>
-
-</div>
-
-<!-- ── VISTA POR LÍDER ── -->
-<div class="view" id="v-lider">
-  <div id="leader-panel">
-    <div class="empty-state"><div class="ei">👆</div>Selecciona un líder en el filtro superior</div>
-  </div>
-</div>
-
-<!-- ── VISTA PUNTUALIDAD ── -->
-<div class="view" id="v-puntualidad">
-  <div class="chart-wrap">
-    <div class="chart-header">
-      <div class="chart-title">Puntualidad por sesión</div>
-      <div class="chart-legend">
-        <span class="leg-item leg-punt">✓ Puntual</span>
-        <span class="leg-item leg-tard">⏰ Tarde</span>
+    <!-- Heatmap -->
+    <div class="sec-block">
+      <div class="sec-block-hd">
+        <div class="sec-block-title">Detalle por líder</div>
+      </div>
+      <div class="sec-block-body" style="padding-top:10px;">
+        <div class="hm-scroll">
+          <table class="hm-table" id="heatmap"></table>
+        </div>
       </div>
     </div>
-    <svg id="punt-canvas"></svg>
-  </div>
-  <div class="hm-wrap">
-    <table class="hm" id="punt-hm-table"></table>
-  </div>
-</div>
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  </div>
+
+  <!-- ── VISTA INDIVIDUAL ── -->
+  <div id="view-individual" style="display:none;">
+    <div class="sec-block" id="leader-detail">
+      <div class="empty-state">Selecciona un líder en el menú superior</div>
+    </div>
+  </div>
+
+</div><!-- /content -->
+
+<footer>4DX · Tiempo de Inversión en Iniciativas · Planta Ate · 2026-1</footer>
+
 <script>
-
-// ══════════ CONFIG ══════════
+// ─── CONFIG ───────────────────────────────────────────────────────────────────
 const CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vSI4G-2KDHTK9i7ZOLNFivP9JttrtKao9A02GEAHxociatw_sb0hUvU-eGH2CjiBQ/pub?gid=1891876114&single=true&output=csv';
+// META progresiva por quincena (2 semanas cada una)
+// h/sem ref:  3.3  4.9   6.2   7.2   7.7   8.4   9.1   9.6
+const META_Q = [6.6, 9.8, 12.4, 14.4, 15.4, 16.8, 18.2, 19.2];
+function getMetaQ(qNum){ return META_Q[(qNum||1)-1] ?? META_Q[META_Q.length-1]; }
+const Q_SESSIONS = ['S1 → S2','S3 → S4','S5 → S6','S7 → S8','S9 → S10','S11 → S12'];
 
-// ══════════ GLOBALS ══════════
-let LEADERS = [], SESSIONS = [], DATES = [];
-let currentView = 'general', currentLeader = '', currentNivel = 'todos';
-let currentSessions = new Set();
-let currentGrupos   = new Set(); // vacío = todos los grupos // vacío = todas las sesiones
-let currentAttFilter  = ''; // '' | 'SI' | 'NO' | 'RET'
-let currentPuntFilter = ''; // '' | 'PUNT' | 'TARD'
+// ─── STATE ────────────────────────────────────────────────────────────────────
+let LEADERS    = [];
+let QUINCENAS  = [];
+let currentView      = 'general';
+let currentNivel     = 'todos';
+let currentQuincenas = new Set(); // vacío = todas
 
-// ══════════ CSV PARSER (robusto) ══════════
-function nrm(s){return(s||'').trim().toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'');}
+// ─── UTILS ────────────────────────────────────────────────────────────────────
+function nrm(s){ return (s||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().trim(); }
 
 function parseCSV(text){
-  if(text&&text.charCodeAt(0)===0xFEFF) text=text.slice(1);
-  const rows=[];let row=[],field='',inQ=false;
+  if(text.charCodeAt(0)===0xFEFF) text=text.slice(1);
+  text=text.replace(/\r\n/g,'\n').replace(/\r/g,'\n');
+  const rows=[]; let cur=[],field='',inQ=false;
   for(let i=0;i<text.length;i++){
     const c=text[i];
-    if(inQ){if(c==='"'){if(text[i+1]==='"'){field+='"';i++;}else inQ=false;}else field+=c;}
-    else{
-      if(c==='"')inQ=true;
-      else if(c===','){row.push(field.trim());field='';}
-      else if(c==='\n'){row.push(field.trim());rows.push(row);row=[];field='';}
-      else if(c!=='\r')field+=c;
+    if(inQ){
+      if(c==='"'){ if(text[i+1]==='"'){field+='"';i++;} else inQ=false; }
+      else field+=c;
+    } else {
+      if(c==='"') inQ=true;
+      else if(c===','){cur.push(field);field='';}
+      else if(c==='\n'){cur.push(field);rows.push(cur);cur=[];field='';}
+      else field+=c;
     }
   }
-  if(row.length||field.trim())rows.push([...row,field.trim()]);
+  if(field||cur.length){cur.push(field);rows.push(cur);}
   return rows;
 }
 
-function normalizePunt(v){
-  const n=nrm(v);
-  if(n.includes('puntual')||n==='p') return 'PUNT';
-  if(n.includes('tard')||n==='t')    return 'TARD';
-  return '';
-}
-function normalizeAtt(v){
-  const n=nrm(v);
-  if(n==='si'||n==='s'||n==='yes'||n==='y'||n==='1')return'SI';
-  if(n==='no'||n==='n'||n==='0')return'NO';
-  if(n.includes('retir'))return'RET';
-  return '';
-}
-
-// ══════════ BUILD DATA ══════════
-function buildFromCSV(rows){
-  // ── 1. Localizar fila de headers ──
-  let headerIdx=-1, headers=[];
-  for(let i=0;i<Math.min(rows.length,10);i++){
-    const norm=rows[i].map(c=>nrm(c));
-    if(norm.some(c=>c.includes('colaborador'))){
-      headerIdx=i; headers=norm; break;
-    }
+function findCol(headers, ...terms){
+  for(let i=0;i<headers.length;i++){
+    const n=nrm(headers[i]);
+    if(terms.every(t=>n.includes(t))) return i;
   }
-  if(headerIdx<0){console.warn('Headers no encontrados');return[];}
-
-  // ── 2. Detectar columnas base ──
-  const fi=(terms)=>headers.findIndex(h=>terms.some(t=>h.includes(nrm(t))));
-  const colPlanta    = fi(['planta']);
-  const colNombre    = fi(['colaborador']);
-  const colNivel     = fi(['nivel']);
-  const colGrupo     = fi(['grupoplanta','grupo planta','grupo']);
-
-  // ── 3. Detectar TODAS las sesiones dinámicamente ──
-  // Busca headers con patrón: "asistencia s1", "asistencia s 1", "asiste s1", etc.
-  SESSIONS = [];
-  headers.forEach((h,i)=>{
-    const m = h.match(/asist\w*[\s\-]?s\s*(\d+)/);
-    if(m){
-      SESSIONS.push({
-        num:      parseInt(m[1]),
-        label:    'S'+m[1],
-        attIdx:   i,
-        motiIdx:  -1,   // se calcula abajo por nombre
-        tiempoIdx:-1    // se calcula abajo por nombre
-      });
-    }
-  });
-  SESSIONS.sort((a,b)=>a.num-b.num);
-  // Detectar motiIdx y tiempoIdx por nombre de columna
-  SESSIONS.forEach(s=>{
-    const sn=String(s.num);
-    s.motiIdx  = headers.findIndex(h=>(h.includes('motiv')||h.includes('causa'))&&(h.includes('s'+sn)||h.endsWith(sn)));
-    s.tiempoIdx= headers.findIndex(h=>h.includes('tiempo')&&h.includes('quincena'));
-    // fallback posicional si no se detecta por nombre
-    if(s.motiIdx<0)  s.motiIdx  = s.attIdx+2; // asistencia→puntualidad→motivos
-    if(s.tiempoIdx<0) s.tiempoIdx= s.attIdx+3;
-  });
-  // Detectar columnas de puntualidad por nombre
-  SESSIONS.forEach(s=>{
-    const sTag = 's'+s.num; // 's1','s2'...
-    s.puntIdx = headers.findIndex(h=>h.includes('puntual')&&(h.includes(sTag)||h.endsWith(String(s.num))));
-  });
-  console.log('Puntualidad idx:', SESSIONS.map(s=>s.label+'->punt@'+s.puntIdx));
-  console.log('Sesiones detectadas:', SESSIONS.map(s=>s.label+'@'+s.attIdx));
-
-  // ── 4. Extraer fechas y nivel de las filas anteriores al header ──
-  // Estructura del sheet (desde abajo hacia arriba):
-  //   headerIdx-2 → fila de rangos de fecha
-  //   headerIdx-1 → fila de etiquetas de nivel (Intermedio / Nuevo) — fila nueva
-  //   headerIdx   → fila de headers
-  const dateRow  = headerIdx>=2 ? rows[headerIdx-2] : (headerIdx>=1 ? rows[headerIdx-1] : []);
-  const nivelRow = headerIdx>=2 ? rows[headerIdx-1] : [];
-  // Adjuntar fechas por nivel a cada sesión
-  // rows[headerIdx-2] → fechas de Intermedios
-  // rows[headerIdx-1] → fechas de Nuevos  (fila agregada por el usuario)
-  SESSIONS.forEach(s => {
-    s.dateInt = (dateRow[s.attIdx]||'').trim();
-    s.dateNvo = (nivelRow[s.attIdx]||'').trim();
-  });
-  DATES = SESSIONS.map(s => s.dateInt); // compatibilidad con renderLeaderView
-
-  // ── 5. Filas de datos: solo HUACHIPA ──
-  const data = rows.slice(headerIdx+1).filter(r=>{
-    if(!r||r.length<3) return false;
-    const nombre = (r[colNombre]||'').trim();
-    const planta = nrm(r[colPlanta]||'');
-    return nombre && planta.includes('ate');
-  });
-
-  // ── 6. Construir objetos líder ──
-  return data.map(r=>({
-    name:  (r[colNombre]||'').trim(),
-    short: makeShort((r[colNombre]||'').trim()),
-    nivel: colNivel>=0 ? (r[colNivel]||'').trim() : '',
-    grupo: colGrupo>=0 ? (r[colGrupo]||'').trim() : '',
-    sessions: SESSIONS.map(s=>({
-      label:  s.label,
-      att:    normalizeAtt(r[s.attIdx]||''),
-      punt:   s.puntIdx>=0 ? normalizePunt(r[s.puntIdx]||'') : '',
-      motivo: (r[s.motiIdx]||'').trim(),
-      tiempo: (r[s.tiempoIdx]||'').trim()
-    }))
-  }));
+  return -1;
 }
 
-function makeShort(full){
+function makeShort(name){
   // Primer nombre + primer apellido
-  // Para nombres españoles: nombre [nombre2] apellido1 [apellido2]
-  const p=(full||'').trim().split(/\s+/);
-  if(p.length<=2) return full.trim();
-  if(p.length===3) return p[0]+' '+p[1];       // nombre + primer apellido
-  return p[0]+' '+p[p.length-2];               // nombre + primer apellido (penúltimo)
+  const p=(name||'').trim().split(/\s+/);
+  if(p.length<=2) return (name||'').trim();
+  if(p.length===3) return p[0]+' '+p[1];
+  return p[0]+' '+p[p.length-2];
 }
-function makeAbbrev(full){
-  // Primer nombre + inicial del primer apellido (para espacios reducidos)
-  const p=(full||'').trim().split(/\s+/);
-  if(p.length<=1) return full.trim();
+function makeAbbrev(name){
+  // Primer nombre + inicial primer apellido (espacios reducidos)
+  const p=(name||'').trim().split(/\s+/);
+  if(p.length<=1) return (name||'').trim();
   const sur=p.length===2?p[1]:p.length===3?p[1]:p[p.length-2];
   return p[0]+' '+sur[0]+'.';
 }
 
-function filteredLeaders(){
-  let result = LEADERS;
-  // Filtro por nivel
-  if(currentNivel!=='todos'){
-    result=result.filter(l=>{
-      const n=nrm(l.nivel);
-      if(currentNivel==='intermedio') return n.includes('intermed');
-      if(currentNivel==='nuevo') return n.includes('nuevo')||n==='new';
-      return true;
-    });
-  }
-  // Filtro por grupo
-  if(currentGrupos.size>0){
-    result=result.filter(l=>currentGrupos.has(l.grupo));
-  }
-  // Filtro por estado de asistencia
-  if(currentAttFilter){
-    const fsLabels=new Set(filteredSessions().map(s=>s.label));
-    result=result.filter(l=>l.sessions.some((s,i)=>fsLabels.has(SESSIONS[i].label)&&s.att===currentAttFilter));
-  }
-  // Filtro por puntualidad
-  if(currentPuntFilter){
-    const fsLabels=new Set(filteredSessions().map(s=>s.label));
-    const opposite=currentPuntFilter==='TARD'?'PUNT':'TARD';
-    result=result.filter(l=>
-      !l.sessions.some((s,i)=>fsLabels.has(SESSIONS[i].label)&&s.att==='NO')&&
-      l.sessions.some((s,i)=>fsLabels.has(SESSIONS[i].label)&&s.att==='SI'&&s.punt===currentPuntFilter)&&
-      !l.sessions.some((s,i)=>fsLabels.has(SESSIONS[i].label)&&s.att==='SI'&&s.punt===opposite)
-    );
-  }
-  return result;
+function parseHours(raw){
+  const s=(raw||'').trim().replace(',','.');
+  if(!s||s==='-'||s==='0') return null;
+  const n=parseFloat(s);
+  return isNaN(n)||n===0 ? null : n;
 }
 
-function renderKPIs(){
-  if(currentView==='puntualidad') renderKPIsPunt();
-  else renderKPIsAsist();
+// ─── COLORS ───────────────────────────────────────────────────────────────────
+function perfColor(h, meta){
+  const m = meta ?? getMetaQ(1);
+  if(h===null||h===undefined) return '#94a3b8';
+  if(h>=m)       return '#16a34a';
+  if(h>=m*0.8)   return '#d97706';
+  if(h>=m*0.5)   return '#ea580c';
+  return '#dc2626';
 }
-function filteredSessions(){
-  if(currentSessions.size===0) return SESSIONS;
-  return SESSIONS.filter(s=>currentSessions.has(s.label));
+function perfBg(h, meta){
+  const m = meta ?? getMetaQ(1);
+  if(h===null||h===undefined) return '#f8fafc';
+  if(h>=m)       return '#dcfce7';
+  if(h>=m*0.8)   return '#fef3c7';
+  if(h>=m*0.5)   return '#ffedd5';
+  return '#fee2e2';
 }
-
-function nivelBadgeHtml(nivel){
+function nivelBadge(nivel){
   if(!nivel) return '';
-  const n=nrm(nivel);
-  const cls=n.includes('intermed')?'nb-int':'nb-nvo';
+  const cls = nrm(nivel).includes('intermed') ? 'nb-int' : 'nb-nvo';
   return `<span class="nivel-badge ${cls}">${nivel}</span>`;
 }
 
-// ══════════ KPIs ══════════
-function renderKPIsAsist(){
-  const fl = filteredLeaders();
-  const fs = filteredSessions();
-  const fsLabels = new Set(fs.map(s=>s.label));
-  const total = fl.length;
-  let asist=0,faltas=0,retirados=0,total_reg=0;
-  fl.forEach(l=>l.sessions.forEach((s,i)=>{
-    if(!fsLabels.has(SESSIONS[i].label)) return;
-    if(s.att==='SI'){asist++;total_reg++;}
-    else if(s.att==='NO'){faltas++;total_reg++;}
-    else if(s.att==='RET'){retirados++;}  // excluido del denominador
-  }));
-  const pct = total_reg>0 ? Math.round(asist/total_reg*100) : 0;
-  const nivelLbl = currentNivel==='todos'?'líderes':currentNivel==='intermedio'?'intermedios':'nuevos';
-  const sessLbl = currentSessions.size===0 ? 'S1–S'+(SESSIONS.length||8)
-    : [...currentSessions].sort().join(' + ');
-  document.getElementById('k-lideres').textContent = total;
-  document.getElementById('k-asist').textContent   = asist;
-  document.getElementById('k-faltas').textContent  = faltas;
-  document.getElementById('k-retir').textContent   = retirados;
-  document.getElementById('k-pct').textContent     = pct+'%';
-  // Restaurar clases de color y etiquetas originales (pueden haber cambiado en la vista Puntualidad)
-  document.getElementById('k-asist').className  = 'kv green';
-  document.getElementById('k-faltas').className = 'kv red';
-  document.getElementById('k-pct').className    = 'kv amber';
-  document.getElementById('k-retir').className  = 'kv orange';
-  document.getElementById('kl-asist').textContent = 'Asistencias';
-  document.getElementById('kl-faltas').textContent = 'Faltas';
-  document.getElementById('kl-pct').textContent   = '% Asistencia';
-  document.getElementById('kl-retir').textContent  = 'Retirados';
-  document.getElementById('hbadge').textContent    = total+' '+nivelLbl+' · '+sessLbl;
-}
+// ─── CSV → DATA ───────────────────────────────────────────────────────────────
+function buildFromCSV(rows){
+  // Find header row (look for "nombre" or "líder" in first 10 rows)
+  let headerIdx = 0;
+  for(let i=0;i<Math.min(rows.length,10);i++){
+    if(rows[i].some(c=>nrm(c).includes('nombre')||nrm(c).includes('lider')||nrm(c).includes('colabor'))){
+      headerIdx=i; break;
+    }
+  }
+  const h = rows[headerIdx];
 
-// ══════════ KPIS PUNTUALIDAD ══════════
-function renderKPIsPunt(){
-  const fl=filteredLeaders();
-  const fs=filteredSessions();
-  const fsLabels=new Set(fs.map(s=>s.label));
-  const total=fl.length;
-  let punt=0,tard=0,total_p=0;
-  fl.forEach(l=>l.sessions.forEach((s,i)=>{
-    if(!fsLabels.has(SESSIONS[i].label)||s.att!=='SI') return;
-    if(s.punt==='PUNT'){punt++;total_p++;}
-    else if(s.punt==='TARD'){tard++;total_p++;}
-  }));
-  const pct=total_p>0?Math.round(punt/total_p*100):0;
-  const pctColor=pct>=80?'green':pct>=60?'amber':'red';
-  const sessLbl=currentSessions.size===0?'S1–S'+(SESSIONS.length||8):[...currentSessions].sort().join(' + ');
-  document.getElementById('k-lideres').textContent  = total;
-  document.getElementById('k-asist').textContent    = punt;
-  document.getElementById('k-asist').className      = 'kv green';
-  document.getElementById('kl-asist').textContent   = 'Puntuales';
-  document.getElementById('k-faltas').textContent   = tard;
-  document.getElementById('k-faltas').className     = 'kv amber';
-  document.getElementById('kl-faltas').textContent  = 'Tardanzas';
-  document.getElementById('k-pct').textContent      = pct+'%';
-  document.getElementById('k-pct').className        = 'kv '+pctColor;
-  document.getElementById('kl-pct').textContent     = '% Puntualidad';
-  document.getElementById('k-retir').textContent    = '—';
-  document.getElementById('kl-retir').textContent   = '—';
-  document.getElementById('hbadge').textContent     = total+' líderes · '+sessLbl;
-}
+  // Named columns
+  const colNombre = findCol(h,'nombre')>=0 ? findCol(h,'nombre') : findCol(h,'colabor')>=0 ? findCol(h,'colabor') : findCol(h,'lider');
+  const colNivel  = findCol(h,'nivel')>=0  ? findCol(h,'nivel')  : findCol(h,'tipo');
 
-// ══════════ HEATMAP ══════════
-function renderHeatmap(){
-  const tbl = document.getElementById('hm-table');
-  tbl.innerHTML='';
-  const thead=tbl.createTHead(), hr=thead.insertRow();
-
-  // Esquina
-  const corner=document.createElement('th');
-  corner.className='corner';corner.textContent='Líder ↓ / Sesión →';
-  hr.appendChild(corner);
-
-  // Cabeceras de sesión — muestra fecha de Intermedios y Nuevos sobre el número
-  const activeLabels = new Set(filteredSessions().map(s=>s.label));
-  SESSIONS.forEach((s)=>{
-    const th=document.createElement('th');
-    const isDim = currentSessions.size>0 && !activeLabels.has(s.label);
-    th.className='hm-col-head'+(isDim?' dim':'');
-    const intLine = s.dateInt
-      ? `<div class="sh-date sh-date-int"><span class="sh-tag">INT</span>${s.dateInt}</div>` : '';
-    const nvoLine = s.dateNvo
-      ? `<div class="sh-date sh-date-nvo"><span class="sh-tag">NVO</span>${s.dateNvo}</div>` : '';
-    th.innerHTML=`<div class="sh-dates">${intLine}${nvoLine}</div><span class="snum">${s.label}</span>`;
-    hr.appendChild(th);
-  });
-
-  const fl=filteredLeaders();
-  const tbody=tbl.createTBody();
-  fl.forEach(l=>{
-    const tr=tbody.insertRow();
-    const th=document.createElement('th');th.className='hm-row-head';
-    th.innerHTML=l.short+nivelBadgeHtml(l.nivel)+(l.grupo?`<span class="nivel-badge nb-grp">G${l.grupo}</span>`:'');th.title=l.name;
-    tr.appendChild(th);
-    l.sessions.forEach((s,i)=>{
-      const td=tr.insertCell();
-      const isDimCell = currentSessions.size>0 && !activeLabels.has(SESSIONS[i].label);
-      const cls = s.att==='SI'?'si':s.att==='NO'?'no':s.att==='RET'?'ret':'empty';
-      td.className='hm-cell '+cls+(isDimCell?' dim':'');
-      td.textContent = s.att==='SI'?'✓':s.att==='NO'?'✗':s.att==='RET'?'↩':'—';
-      if(s.motivo){
-        td.style.cursor='pointer';
-        td.addEventListener('mouseenter',e=>showTip(e,`<b>${l.short} · ${s.label}</b><br>${s.motivo}`));
-        td.addEventListener('mousemove',moveTip);
-        td.addEventListener('mouseleave',hideTip);
-      }
-    });
-  });
-}
-
-
-// ══════════ HEATMAP PUNTUALIDAD ══════════
-function renderHeatmapPunt(){
-  const tbl=document.getElementById('punt-hm-table');
-  if(!tbl) return;
-  tbl.innerHTML='';
-  const thead=tbl.createTHead(), hr=thead.insertRow();
-  const corner=document.createElement('th');
-  corner.className='corner';corner.textContent='Líder ↓ / Sesión →';
-  hr.appendChild(corner);
-  const activeLabels=new Set(filteredSessions().map(s=>s.label));
-  SESSIONS.forEach(s=>{
-    const th=document.createElement('th');
-    const isDim=currentSessions.size>0&&!activeLabels.has(s.label);
-    th.className='hm-col-head'+(isDim?' dim':'');
-    const intLine=s.dateInt?`<div class="sh-date sh-date-int"><span class="sh-tag">INT</span>${s.dateInt}</div>`:'';
-    const nvoLine=s.dateNvo?`<div class="sh-date sh-date-nvo"><span class="sh-tag">NVO</span>${s.dateNvo}</div>`:'';
-    th.innerHTML=`<div class="sh-dates">${intLine}${nvoLine}</div><span class="snum">${s.label}</span>`;
-    hr.appendChild(th);
-  });
-  const fl=filteredLeaders();
-  const tbody=tbl.createTBody();
-  fl.forEach(l=>{
-    const tr=tbody.insertRow();
-    const th=document.createElement('th');th.className='hm-row-head';
-    th.innerHTML=l.short+nivelBadgeHtml(l.nivel)+(l.grupo?`<span class="nivel-badge nb-grp">G${l.grupo}</span>`:'');
-    th.title=l.name;tr.appendChild(th);
-    l.sessions.forEach((s,i)=>{
-      const td=tr.insertCell();
-      const isDimCell=currentSessions.size>0&&!activeLabels.has(SESSIONS[i].label);
-      const pv=s.att==='SI';
-      const cls=pv&&s.punt==='PUNT'?'punt':pv&&s.punt==='TARD'?'tard':'empty';
-      td.className='hm-cell '+cls+(isDimCell?' dim':'');
-      td.textContent=pv&&s.punt==='PUNT'?'✓':pv&&s.punt==='TARD'?'⏰':'—';
-    });
-  });
-}
-
-// ══════════ GRÁFICO DE BARRAS (D3) — mejorado ══════════
-function renderChart(){
-  const fl=filteredLeaders();
-  const fs=filteredSessions();
-  const activeLabels=new Set(fs.map(s=>s.label));
-
-  const nivelTitle={'todos':'todos los líderes','intermedio':'líderes intermedios','nuevo':'líderes nuevos'};
-  const chartTitleEl=document.getElementById('chart-title');
-  if(chartTitleEl) chartTitleEl.textContent='Asistencia por sesión — '+nivelTitle[currentNivel];
-
-  const chartWrap=document.querySelector('.chart-wrap');
-  const svgEl=document.getElementById('bar-canvas');
-  const W=chartWrap.clientWidth-40, H=240;
-  d3.select(svgEl).selectAll('*').remove();
-  const svg=d3.select(svgEl).attr('width',W).attr('height',H);
-
-  const data=SESSIONS.map((s,i)=>{
-    let si=0,no=0,ret=0;
-    fl.forEach(l=>{
-      if(l.sessions[i].att==='SI')si++;
-      else if(l.sessions[i].att==='NO')no++;
-      else if(l.sessions[i].att==='RET')ret++;
-    });
-    const total=si+no; // RET excluido del denominador
-    return{label:s.label,si,no,ret,pct:total>0?Math.round(si/total*100):null,active:activeLabels.has(s.label)};
-  });
-
-  const margin={top:14,right:32,bottom:32,left:34};
-  const iW=W-margin.left-margin.right, iH=H-margin.top-margin.bottom;
-  const g=svg.append('g').attr('transform',`translate(${margin.left},${margin.top})`);
-
-  const x=d3.scaleBand().domain(data.map(d=>d.label)).range([0,iW]).padding(.32);
-  const maxVal=fl.length||1;
-  const y=d3.scaleLinear().domain([0,maxVal]).nice().range([iH,0]);
-
-  // Grid
-  g.append('g').call(d3.axisLeft(y).ticks(4).tickSize(-iW))
-    .call(a=>{a.select('.domain').remove();
-      a.selectAll('.tick line').style('stroke','#f1f5f9').style('stroke-dasharray','3,3');
-      a.selectAll('text').style('font-size','9px').style('fill','#94a3b8');});
-
-  // Línea 80%
-  if(fl.length>0){
-    const ref80y=y(Math.round(fl.length*0.8));
-    g.append('line').attr('x1',0).attr('x2',iW).attr('y1',ref80y).attr('y2',ref80y)
-      .style('stroke','#f59e0b').style('stroke-width',1.5).style('stroke-dasharray','5,3');
-    g.append('text').attr('x',iW+3).attr('y',ref80y+3)
-      .style('font-size','8px').style('fill','#d97706').style('font-weight','700').text('80%');
+  // Detect quincena columns: "Tiempo Evidenciado - Quincena N (hrs)"
+  const qMap = {};
+  for(let i=0;i<h.length;i++){
+    const n = nrm(h[i]);
+    const m = n.match(/tiempo.*quincena\s*(\d+)/);
+    if(m) qMap[parseInt(m[1])] = i;
   }
 
-  // Eje X — etiqueta azul si sesión activa
-  g.append('g').attr('transform',`translate(0,${iH})`).call(d3.axisBottom(x).tickSize(0))
-    .call(a=>{a.select('.domain').remove();
-      a.selectAll('text').style('font-size','10px').style('font-weight','700')
-        .style('fill',(_,i)=>data[i]&&data[i].active?'#1d4ed8':'#cbd5e1');});
+  // Build sorted QUINCENAS
+  QUINCENAS = Object.keys(qMap).sort((a,b)=>+a-+b).map(q=>({
+    label:    'Q'+q,
+    sessions: Q_SESSIONS[+q-1] || '',
+    colIdx:   qMap[+q],
+    qNum:     +q,
+    metaQ:    getMetaQ(+q)
+  }));
 
-  // Barra SI (verde, base)
-  g.selectAll('.bar-si').data(data).join('rect').attr('class','bar-si')
-    .attr('x',d=>x(d.label)).attr('width',x.bandwidth())
-    .attr('y',d=>y(d.si)).attr('height',d=>Math.max(0,iH-y(d.si)))
-    .attr('rx',4).attr('fill','#4ade80').attr('fill-opacity',d=>d.active?0.9:0.25);
+  if(!QUINCENAS.length) return [];
 
-  // Barra NO (rojo, encima) — ALTURA CORREGIDA: y(si) - y(si+no)
-  g.selectAll('.bar-no').data(data).join('rect').attr('class','bar-no')
-    .attr('x',d=>x(d.label)).attr('width',x.bandwidth())
-    .attr('y',d=>y(d.si+d.no)).attr('height',d=>Math.max(0,y(d.si)-y(d.si+d.no)))
-    .attr('rx',4).attr('fill','#f87171').attr('fill-opacity',d=>d.active?0.85:0.2);
+  // Detect planta column for filtering
+  const colPlanta = findCol(h,'planta');
 
-  // Número dentro barra SI (si hay espacio)
-  g.selectAll('.cnt-si').data(data).join('text').attr('class','cnt-si')
-    .attr('x',d=>x(d.label)+x.bandwidth()/2).attr('y',d=>(y(d.si)+iH)/2+4)
-    .attr('text-anchor','middle').style('font-size','10px').style('font-weight','800').style('fill','#166534')
-    .style('opacity',d=>iH-y(d.si)>18&&d.si>0?1:0).text(d=>d.si||'');
+  // Build leader rows (filter to Ate if plant column exists)
+  return rows.slice(headerIdx+1)
+    .filter(r=>{ const nm=(r[colNombre]||'').trim(); if(!nm) return false; if(colPlanta>=0&&!nrm(r[colPlanta]||'').includes('ate')) return false; return true; })
+    .map(r=>({
+      name:      (r[colNombre]||'').trim(),
+      short:     makeShort((r[colNombre]||'').trim()),
+      abbrev:    makeAbbrev((r[colNombre]||'').trim()),
+      nivel:     colNivel>=0 ? (r[colNivel]||'').trim() : '',
+      quincenas: QUINCENAS.map(q=>({
+        label:    q.label,
+        sessions: q.sessions,
+        hours:    parseHours(r[q.colIdx]),
+        metaQ:    q.metaQ,
+        qNum:     q.qNum
+      }))
+    }))
+    .filter(l=>l.name);
+}
 
-  // Número dentro barra NO (si hay espacio)
-  g.selectAll('.cnt-no').data(data).join('text').attr('class','cnt-no')
-    .attr('x',d=>x(d.label)+x.bandwidth()/2).attr('y',d=>(y(d.si+d.no)+y(d.si))/2+4)
-    .attr('text-anchor','middle').style('font-size','10px').style('font-weight','800').style('fill','#991b1b')
-    .style('opacity',d=>y(d.si)-y(d.si+d.no)>18&&d.no>0?1:0).text(d=>d.no||'');
+// ─── FILTERS ──────────────────────────────────────────────────────────────────
+function filteredLeaders(){
+  if(currentNivel==='todos') return LEADERS;
+  return LEADERS.filter(l=>{
+    const n=nrm(l.nivel);
+    if(currentNivel==='intermedio') return n.includes('intermed');
+    if(currentNivel==='nuevo')      return n.includes('nuevo')||n==='new';
+    return true;
+  });
+}
+function filteredQuincenas(){
+  if(currentQuincenas.size===0) return QUINCENAS;
+  return QUINCENAS.filter(q=>currentQuincenas.has(q.label));
+}
 
-  // % encima — color según rendimiento
-  g.selectAll('.pct-lbl').data(data).join('text').attr('class','pct-lbl')
-    .attr('x',d=>x(d.label)+x.bandwidth()/2).attr('y',d=>d.pct!==null?y(d.si+d.no)-7:0)
-    .attr('text-anchor','middle').style('font-size','10px').style('font-weight','800')
-    .style('fill',d=>d.pct===null?'none':d.pct>=80?'#16a34a':d.pct>=60?'#d97706':'#dc2626')
-    .style('opacity',d=>d.active?1:0.3).text(d=>d.pct!==null?d.pct+'%':'');
+// ─── KPIs ─────────────────────────────────────────────────────────────────────
+function renderKPIs(){
+  const leaders  = filteredLeaders();
+  const activeQs = filteredQuincenas();
 
+  // Leaders with data in any active quincena
+  const withData = leaders.filter(l=>
+    l.quincenas.some(q=>activeQs.some(aq=>aq.label===q.label)&&q.hours!==null)
+  );
+
+  // Last active quincena index (within filter) that has data
+  let lastQIdx=-1;
+  activeQs.forEach(aq=>{
+    const idx=QUINCENAS.findIndex(q=>q.label===aq.label);
+    if(idx>=0&&leaders.some(l=>l.quincenas[idx]?.hours!==null)) lastQIdx=idx;
+  });
+
+  // Avg + % en meta for last active quincena
+  let avgLast=null, pctMeta=null;
+  if(lastQIdx>=0){
+    const metaLastQ=QUINCENAS[lastQIdx].metaQ;
+    const vals=leaders.map(l=>l.quincenas[lastQIdx]?.hours).filter(h=>h!==null);
+    if(vals.length){
+      avgLast=vals.reduce((a,b)=>a+b,0)/vals.length;
+      pctMeta=Math.round(vals.filter(h=>h>=metaLastQ).length/vals.length*100);
+    }
+  }
+
+  // Quincenas con al menos un dato dentro del filtro
+  const qActivas=activeQs.filter(aq=>{
+    const idx=QUINCENAS.findIndex(q=>q.label===aq.label);
+    return leaders.some(l=>l.quincenas[idx]?.hours!==null);
+  }).length;
+
+  const metaRef  = lastQIdx>=0?QUINCENAS[lastQIdx].metaQ:getMetaQ(1);
+  const avgColor = avgLast===null?'blue':avgLast>=metaRef?'green':avgLast>=metaRef*0.8?'amber':'red';
+  const pctColor = pctMeta===null?'blue':pctMeta>=80?'green':pctMeta>=60?'amber':'red';
+  const qLabel   = lastQIdx>=0?QUINCENAS[lastQIdx].label:'';
+
+  document.getElementById('kpi-row').innerHTML=`
+    <div class="kpi"><div class="kv blue">${withData.length}</div><div class="kl">Líderes con datos</div></div>
+    <div class="kpi"><div class="kv ${avgColor}">${avgLast!==null?avgLast.toFixed(1)+'h':'—'}</div><div class="kl">Promedio ${qLabel}</div></div>
+    <div class="kpi"><div class="kv blue">${qActivas}</div><div class="kl">Quincenas activas</div></div>
+    <div class="kpi"><div class="kv ${pctColor}">${pctMeta!==null?pctMeta+'%':'—'}</div><div class="kl">% en meta (última Q)</div></div>
+  `;
 }
 
 
-// ══════════ GRÁFICO PUNTUALIDAD ══════════
-function renderChartPunt(){
-  const fl=filteredLeaders();
-  const fs=filteredSessions();
-  const activeLabels=new Set(fs.map(s=>s.label));
-  const svgEl=document.getElementById('punt-canvas');
-  if(!svgEl) return;
-  const wrap=svgEl.parentElement;
-  const W=wrap?wrap.clientWidth-2:600, H=220;
-  const margin={top:14,right:32,bottom:32,left:34};
-  const iW=W-margin.left-margin.right, iH=H-margin.top-margin.bottom;
+// ─── BAR CHART ────────────────────────────────────────────────────────────────
+function renderChart(){
+  const leaders   = filteredLeaders();
+  const chartWrap = document.querySelector('.chart-wrap');
+  if(!chartWrap||!QUINCENAS.length) return;
 
-  const data=SESSIONS.map((s,i)=>{
-    let punt=0,tard=0;
-    fl.forEach(l=>{
-      if(l.sessions[i].att!=='SI') return;
-      if(l.sessions[i].punt==='PUNT') punt++;
-      else if(l.sessions[i].punt==='TARD') tard++;
-    });
-    const total=punt+tard;
-    return{label:s.label,punt,tard,pct:total>0?Math.round(punt/total*100):null,active:activeLabels.has(s.label)};
+  const svgEl = document.getElementById('bar-canvas');
+  const W = chartWrap.clientWidth;
+  const H = 240;
+  if(W<60) return;
+
+  const m = {t:24, r:52, b:56, l:44};
+  const iW = W - m.l - m.r;
+  const iH = H - m.t - m.b;
+
+  // Per-quincena averages
+  const data = QUINCENAS.map((q,i)=>{
+    const vals=leaders.map(l=>l.quincenas[i]?.hours).filter(h=>h!==null);
+    return {
+      label:    q.label,
+      sessions: q.sessions,
+      avg:      vals.length ? vals.reduce((a,b)=>a+b,0)/vals.length : null,
+      n:        vals.length,
+      metaQ:    q.metaQ,
+      qNum:     q.qNum
+    };
   });
 
   d3.select(svgEl).selectAll('*').remove();
   const svg=d3.select(svgEl).attr('width',W).attr('height',H);
-  const g=svg.append('g').attr('transform',`translate(${margin.left},${margin.top})`);
-  const x=d3.scaleBand().domain(data.map(d=>d.label)).range([0,iW]).padding(.32);
-  const maxVal=fl.length||1;
-  const y=d3.scaleLinear().domain([0,maxVal]).nice().range([iH,0]);
 
-  // Grid
-  g.append('g').call(d3.axisLeft(y).ticks(4).tickSize(-iW))
-    .call(a=>{a.select('.domain').remove();
-      a.selectAll('.tick line').style('stroke','#f1f5f9').style('stroke-dasharray','3,3');
-      a.selectAll('.tick text').style('fill','#94a3b8').style('font-size','10px');});
-
-  // Línea 80%
-  const ref80=maxVal*0.8;
-  const ref80y=y(ref80);
-  g.append('line').attr('x1',0).attr('x2',iW).attr('y1',ref80y).attr('y2',ref80y)
-    .attr('stroke','#2563eb').attr('stroke-width',1).attr('stroke-dasharray','4,3');
-  g.append('text').attr('x',iW+3).attr('y',ref80y+3)
-    .style('fill','#2563eb').style('font-size','9px').style('font-weight','700').text('80%');
-
-  g.append('g').attr('transform',`translate(0,${iH})`).call(d3.axisBottom(x).tickSize(0))
-    .call(a=>{a.select('.domain').attr('stroke','#e2e8f0');
-      a.selectAll('.tick text').style('fill','#64748b').style('font-size','11px');});
-
-  // Barras puntuales
-  g.selectAll('.bar-punt').data(data).join('rect').attr('class','bar-punt')
-    .attr('x',d=>x(d.label)).attr('width',x.bandwidth())
-    .attr('y',d=>y(d.punt)).attr('height',d=>Math.max(0,iH-y(d.punt)))
-    .attr('rx',4).attr('fill','#4ade80').attr('fill-opacity',d=>d.active?0.9:0.25);
-  // Barras tarde
-  g.selectAll('.bar-tard').data(data).join('rect').attr('class','bar-tard')
-    .attr('x',d=>x(d.label)).attr('width',x.bandwidth())
-    .attr('y',d=>y(d.punt+d.tard)).attr('height',d=>Math.max(0,y(d.punt)-y(d.punt+d.tard)))
-    .attr('rx',4).attr('fill','#fbbf24').attr('fill-opacity',d=>d.active?0.85:0.2);
-
-  // Labels dentro barras
-  g.selectAll('.cnt-punt').data(data).join('text').attr('class','cnt-punt')
-    .attr('x',d=>x(d.label)+x.bandwidth()/2).attr('y',d=>(y(d.punt)+iH)/2+4)
-    .attr('text-anchor','middle').style('font-size','10px').style('font-weight','700').style('fill','#166534')
-    .style('opacity',d=>iH-y(d.punt)>18&&d.punt>0?1:0).text(d=>d.punt||'');
-  g.selectAll('.cnt-tard').data(data).join('text').attr('class','cnt-tard')
-    .attr('x',d=>x(d.label)+x.bandwidth()/2).attr('y',d=>(y(d.punt+d.tard)+y(d.punt))/2+4)
-    .attr('text-anchor','middle').style('font-size','10px').style('font-weight','700').style('fill','#78350f')
-    .style('opacity',d=>y(d.punt)-y(d.punt+d.tard)>18&&d.tard>0?1:0).text(d=>d.tard||'');
-
-  // % labels
-  g.selectAll('.pct-lbl-p').data(data).join('text').attr('class','pct-lbl-p')
-    .attr('x',d=>x(d.label)+x.bandwidth()/2).attr('y',d=>d.pct!==null?y(d.punt+d.tard)-7:0)
-    .attr('text-anchor','middle').style('font-size','10px').style('font-weight','800')
-    .style('fill',d=>d.pct===null?'none':d.pct>=80?'#16a34a':d.pct>=60?'#d97706':'#dc2626')
-    .style('opacity',d=>d.active?1:0.3).text(d=>d.pct!==null?d.pct+'%':'');
-}
-
-// ══════════ VISTA POR LÍDER ══════════
-function renderLeaderView(leaderName){
-  const panel=document.getElementById('leader-panel');
-  if(!leaderName){
-    panel.innerHTML='<div class="empty-state"><div class="ei">👆</div>Selecciona un líder en el filtro superior</div>';
+  // Empty state
+  if(data.every(d=>d.avg===null)){
+    svg.append('text').attr('x',W/2).attr('y',H/2)
+      .attr('text-anchor','middle').style('fill','#94a3b8').style('font-size','13px')
+      .text('Sin datos disponibles');
     return;
   }
-  const l=LEADERS.find(x=>x.name===leaderName);
-  if(!l){panel.innerHTML='<div class="empty-state">Líder no encontrado</div>';return;}
 
-  const si=l.sessions.filter(s=>s.att==='SI').length;
-  const no=l.sessions.filter(s=>s.att==='NO').length;
-  const ret=l.sessions.filter(s=>s.att==='RET').length;
-  const reg=si+no; // RET excluido del denominador
-  const pct=reg>0?Math.round(si/reg*100):null;
+  const maxMeta = Math.max(...QUINCENAS.map(q=>q.metaQ));
+  const maxVal = Math.max(maxMeta*1.3, d3.max(data,d=>d.avg??0)*1.15);
+  const x = d3.scaleBand().domain(QUINCENAS.map(q=>q.label)).range([0,iW]).padding(0.35);
+  const y = d3.scaleLinear().domain([0,maxVal]).range([iH,0]);
+  const g = svg.append('g').attr('transform',`translate(${m.l},${m.t})`);
+
+  // Grid lines
+  g.selectAll('.grid').data(y.ticks(5)).join('line').attr('class','grid')
+    .attr('x1',0).attr('x2',iW).attr('y1',d=>y(d)).attr('y2',d=>y(d))
+    .attr('stroke','#e2e8f0').attr('stroke-dasharray','3,2');
+
+  // Bars
+  g.selectAll('.bar').data(data).join('rect').attr('class','bar')
+    .attr('x',d=>x(d.label)).attr('width',x.bandwidth())
+    .attr('y',d=>d.avg!==null?y(d.avg):iH)
+    .attr('height',d=>d.avg!==null?Math.max(0,iH-y(d.avg)):0)
+    .attr('rx',5)
+    .attr('fill',d=>perfColor(d.avg, d.metaQ))
+    .attr('fill-opacity',d=>{
+      const active=currentQuincenas.size===0||currentQuincenas.has(d.label);
+      return active&&d.avg!==null?0.85:0.1;
+    });
+
+  // Value labels above bars
+  g.selectAll('.val-lbl').data(data).join('text').attr('class','val-lbl')
+    .attr('x',d=>x(d.label)+x.bandwidth()/2)
+    .attr('y',d=>d.avg!==null?y(d.avg)-5:iH)
+    .attr('text-anchor','middle')
+    .style('font-size','10px').style('font-weight','800')
+    .style('fill',d=>perfColor(d.avg, d.metaQ))
+    .style('opacity',d=>{
+      const active=currentQuincenas.size===0||currentQuincenas.has(d.label);
+      return active&&d.avg!==null?1:0;
+    })
+    .text(d=>d.avg!==null?d.avg.toFixed(1)+'h':'');
+
+  // META escalonada: un segmento por quincena
+  QUINCENAS.forEach((q,i)=>{
+    const qx = x(q.label);
+    if(qx===undefined) return;
+    const ym = y(q.metaQ);
+    const activeQ = currentQuincenas.size===0||currentQuincenas.has(q.label);
+    // Segmento horizontal en el META de esta quincena
+    g.append('line')
+      .attr('x1',qx).attr('x2',qx+x.bandwidth())
+      .attr('y1',ym).attr('y2',ym)
+      .attr('stroke','#2563eb').attr('stroke-width',2).attr('stroke-dasharray','5,3')
+      .attr('opacity', activeQ?1:0.15);
+    // Conector diagonal al siguiente (si existe)
+    if(i<QUINCENAS.length-1){
+      const nextQ=QUINCENAS[i+1];
+      const nx=x(nextQ.label);
+      if(nx!==undefined){
+        g.append('line')
+          .attr('x1',qx+x.bandwidth()).attr('x2',nx)
+          .attr('y1',ym).attr('y2',y(nextQ.metaQ))
+          .attr('stroke','#93c5fd').attr('stroke-width',1).attr('stroke-dasharray','3,3');
+      }
+    }
+    // Etiqueta META al final del último segmento
+    if(i===QUINCENAS.length-1){
+      g.append('text')
+        .attr('x',qx+x.bandwidth()+4).attr('y',ym+4)
+        .style('fill','#2563eb').style('font-size','8px').style('font-weight','800')
+        .text(q.metaQ+'h');
+    }
+  });
+
+  // X axis
+  const xAx = g.append('g').attr('transform',`translate(0,${iH})`).call(d3.axisBottom(x).tickSize(0));
+  xAx.select('.domain').attr('stroke','#e2e8f0');
+  xAx.selectAll('text').style('fill','#374151').style('font-size','11px').style('font-weight','700').attr('dy','14px');
+
+  // Session labels below Q labels
+  g.selectAll('.sess-lbl').data(data).join('text').attr('class','sess-lbl')
+    .attr('x',d=>x(d.label)+x.bandwidth()/2)
+    .attr('y',iH+30)
+    .attr('text-anchor','middle')
+    .style('font-size','8px').style('fill','#94a3b8').style('font-weight','600')
+    .text(d=>d.sessions);
+
+  // Y axis
+  g.append('g').call(d3.axisLeft(y).ticks(5).tickSize(3).tickFormat(d=>d+'h'))
+    .call(ax=>ax.select('.domain').remove())
+    .call(ax=>ax.selectAll('text').style('fill','#94a3b8').style('font-size','9px'));
+}
+
+// ─── HEATMAP ──────────────────────────────────────────────────────────────────
+function renderHeatmap(){
+  const leaders = filteredLeaders();
+  const t = document.getElementById('heatmap');
+  if(!QUINCENAS.length){ t.innerHTML=''; return; }
+
+  let html='<thead><tr>';
+  html+='<th class="hm-name-head">Líder</th>';
+  QUINCENAS.forEach(q=>{
+    const activeH=currentQuincenas.size===0||currentQuincenas.has(q.label);
+    html+=`<th class="hm-col-head${activeH?'':' dim'}">
+      <div class="hm-q-label">${q.label}</div>
+      <div class="hm-q-sess">${q.sessions}</div>
+    </th>`;
+  });
+  html+='</tr></thead><tbody>';
+
+  leaders.forEach(l=>{
+    html+=`<tr><td class="hm-name">
+      <span class="hm-name-text">${l.short}</span>${nivelBadge(l.nivel)}
+    </td>`;
+    l.quincenas.forEach(q=>{
+      const h=q.hours;
+      const activeC=currentQuincenas.size===0||currentQuincenas.has(q.label);
+      html+=`<td class="hm-cell${activeC?'':' dim'}" style="background:${perfBg(h,q.metaQ)};color:${perfColor(h,q.metaQ)};">
+        ${h!==null?h.toFixed(1)+'h':'—'}
+      </td>`;
+    });
+    html+='</tr>';
+  });
+  html+='</tbody>';
+  t.innerHTML=html;
+}
+
+// ─── INDIVIDUAL VIEW ──────────────────────────────────────────────────────────
+function renderIndividual(){
+  const name   = document.getElementById('leader-select').value;
+  const leader = LEADERS.find(l=>l.name===name);
+  const container = document.getElementById('leader-detail');
+
+  if(!leader){
+    container.innerHTML='<div class="empty-state">Selecciona un líder en el menú superior</div>';
+    return;
+  }
+
+  // Summary stats
+  const vals  = leader.quincenas.map(q=>q.hours).filter(h=>h!==null);
+  const total = vals.reduce((a,b)=>a+b,0);
+  const avg   = vals.length ? total/vals.length : null;
+  const best  = vals.length ? Math.max(...vals)  : null;
+  const inMeta= leader.quincenas.filter(q=>q.hours!==null&&q.hours>=q.metaQ).length;
 
   let html=`
-  <div class="leader-header">
-    <div class="lh-avatar">👤</div>
-    <div>
-      <div class="lh-name">${l.name}</div>
-      <div class="lh-sub">${l.nivel||'Líder'} · Ate</div>
-      <div class="lh-pills">
-        <span class="lpill lpill-g">✓ ${si} asistencias</span>
-        <span class="lpill lpill-r">✗ ${no} faltas</span>
-        ${ret>0?`<span class="lpill lpill-a">↩ ${ret} retirado${ret>1?'s':''}</span>`:''}
-        ${pct!==null?`<span class="lpill lpill-n">${pct}% cumplimiento</span>`:''}
-      </div>
+    <div class="leader-hero">
+      <div class="lh-name">${leader.name}${nivelBadge(leader.nivel)}</div>
     </div>
-  </div>
-  <div class="sessions-timeline">`;
+    <div style="display:flex;gap:0;border-bottom:1px solid #e2e8f0;">
+      ${miniKpi('Total acumulado', total?total.toFixed(1)+'h':'—', 'blue')}
+      ${miniKpi('Promedio/quincena', avg?avg.toFixed(1)+'h':'—', 'blue')}
+      ${miniKpi('Mejor quincena', best?best.toFixed(1)+'h':'—', 'blue')}
+      ${miniKpi('Quincenas en meta', inMeta+' / '+vals.length, inMeta===vals.length&&vals.length>0?'green':inMeta>0?'amber':'red')}
+    </div>
+    <div class="q-cards">`;
 
-  l.sessions.forEach((s,i)=>{
-    const cls=s.att==='SI'?'si':s.att==='NO'?'no':s.att==='RET'?'ret':'empty';
-    const badgeTxt=s.att==='SI'?'✓ Asistió':s.att==='NO'?'✗ Faltó':s.att==='RET'?'↩ Retirado':'Sin registro';
-    const motiHtml=s.att==='RET'
-      ? `<div class="sc-motivo">${s.motivo||'Se retiró antes de finalizar'}</div>`
-      : s.att==='NO'
-        ? `<div class="sc-motivo">${s.motivo||'Sin motivo registrado'}</div>`
-        : s.att==='SI'
-          ? `<div class="sc-motivo empty-m">Sin observaciones</div>`
-          : `<div class="sc-motivo empty-m">Sin datos aún</div>`;
-    html+=`
-    <div class="sess-card ${cls}">
-      <div class="sc-head">
-        <span class="sc-snum">Sesión ${s.label}</span>
-        <span class="sc-badge ${cls}">${badgeTxt}</span>
+  leader.quincenas.forEach(q=>{
+    const h    = q.hours;
+    const meta = q.metaQ;
+    const pct  = h!==null ? Math.min(100,(h/meta)*100) : 0;
+    const col  = perfColor(h, meta);
+    const bg   = perfBg(h, meta);
+    const lbl  = h!==null?(h>=meta?'✓ En meta':'Bajo meta'):'Sin dato';
+    html+=`<div class="q-card">
+      <div class="qc-top" style="background:${bg};">
+        <div class="qc-label">${q.label}</div>
+        <div class="qc-sessions">${q.sessions}</div>
+        <div class="qc-hours" style="color:${col};">${h!==null?h.toFixed(1)+'h':'—'}</div>
+        <div class="qc-status" style="color:${col};">${lbl}</div>
       </div>
-      <div class="sc-body">
-        ${(SESSIONS[i].dateInt||SESSIONS[i].dateNvo)?`<div class="sc-date" style="display:flex;flex-direction:column;gap:2px;">${SESSIONS[i].dateInt?`<span style="color:#1d4ed8;font-size:.58rem">▸ Int: ${SESSIONS[i].dateInt}</span>`:''} ${SESSIONS[i].dateNvo?`<span style="color:#16a34a;font-size:.58rem">▸ Nvo: ${SESSIONS[i].dateNvo}</span>`:''}</div>`:''}
-        ${motiHtml}
-        ${s.tiempo?`<div style="font-size:.59rem;color:#94a3b8;margin-top:4px">⏱ ${s.tiempo} hrs</div>`:''}
+      <div class="qc-bar-wrap">
+        <div class="qc-bar-track">
+          <div class="qc-bar-fill" style="width:${pct.toFixed(1)}%;background:${col};"></div>
+        </div>
+        <div class="qc-bar-labels">
+          <span style="font-size:.58rem;color:#94a3b8;">0h</span>
+          <span style="font-size:.58rem;color:#2563eb;font-weight:700;">Meta ${meta}h</span>
+        </div>
       </div>
     </div>`;
   });
+
   html+='</div>';
-  panel.innerHTML=html;
+  container.innerHTML=html;
 }
 
-// ══════════ SELECT DE LÍDERES ══════════
-function populateSelect(){
-  const sel=document.getElementById('sel-leader');
-  const prev=sel.value;
-  sel.innerHTML='<option value="">— Seleccionar —</option>';
-  filteredLeaders().forEach(l=>{
-    const opt=document.createElement('option');
-    opt.value=l.name;opt.textContent=l.short+(l.nivel?` (${l.nivel})`:'');
-    sel.appendChild(opt);
-  });
-  // Mantener selección si sigue disponible en el filtro actual
-  if(prev && filteredLeaders().some(l=>l.name===prev)) sel.value=prev;
-  else currentLeader='';
-}
-function onLeaderChange(){
-  currentLeader=document.getElementById('sel-leader').value;
-  if(currentView==='lider') renderLeaderView(currentLeader);
+function miniKpi(lbl,val,color){
+  return `<div class="kpi" style="flex:1;min-width:100px;">
+    <div class="kv ${color}" style="font-size:1.1rem;">${val}</div>
+    <div class="kl">${lbl}</div>
+  </div>`;
 }
 
-// ══════════ CHIPS DE SESIÓN ══════════
-function populateSessions(){
-  const wrap=document.getElementById('sess-chips');
+// ─── QUINCENA CHIPS ───────────────────────────────────────────────────────────
+function populateQuincenaChips(){
+  const wrap=document.getElementById('q-chips');
   wrap.innerHTML='';
-  SESSIONS.forEach(s=>{
+  QUINCENAS.forEach(q=>{
     const chip=document.createElement('div');
     chip.className='sess-chip';
-    chip.textContent=s.label;
-    chip.onclick=()=>switchSession(s.label,chip);
+    chip.textContent=q.label;
+    chip.title=q.sessions;
+    chip.onclick=()=>switchQuincena(q.label,chip);
     wrap.appendChild(chip);
   });
 }
-function switchSession(label,el){
-  if(currentSessions.has(label)){
-    currentSessions.delete(label);
-    el.classList.remove('on');
-  }else{
-    currentSessions.add(label);
-    el.classList.add('on');
-  }
+function switchQuincena(label,el){
+  if(currentQuincenas.has(label)){currentQuincenas.delete(label);el.classList.remove('on');}
+  else{currentQuincenas.add(label);el.classList.add('on');}
   renderKPIs();
   renderHeatmap();
   if(currentView==='general') setTimeout(renderChart,50);
-  if(currentView==='puntualidad'){ renderHeatmapPunt(); setTimeout(renderChartPunt,50); }
 }
 
-// ══════════ GRUPO CHIPS ══════════
-function populateGrupoChips(){
-  const wrap=document.getElementById('grupo-chips');
-  if(!wrap) return;
-  wrap.innerHTML='';
-  const grupos=[...new Set(LEADERS.map(l=>l.grupo).filter(g=>g))].sort((a,b)=>+a-+b);
-  grupos.forEach(g=>{
-    const chip=document.createElement('div');
-    chip.className='sess-chip';
-    chip.textContent='G'+g;
-    chip.title='Grupo '+g;
-    chip.onclick=()=>switchGrupo(g,chip);
-    wrap.appendChild(chip);
-  });
-}
-function switchGrupo(g,el){
-  if(currentGrupos.has(g)){currentGrupos.delete(g);el.classList.remove('on');}
-  else{currentGrupos.add(g);el.classList.add('on');}
-  renderKPIs(); renderHeatmap();
-  if(currentView==='general') setTimeout(renderChart,50);
-  if(currentView==='puntualidad'){ renderHeatmapPunt(); setTimeout(renderChartPunt,50); }
-}
-function switchAttFilter(val,el){
-  currentAttFilter=val;
-  document.querySelectorAll('#att-chips .sess-chip').forEach(c=>c.classList.remove('on'));
+// ─── SWITCH HANDLERS ──────────────────────────────────────────────────────────
+function switchView(view, el){
+  currentView=view;
+  document.querySelectorAll('#ctrl-view .vtab').forEach(t=>t.classList.remove('on'));
   el.classList.add('on');
-  renderKPIs(); renderHeatmap();
-  if(currentView==='general') setTimeout(renderChart,50);
-  if(currentView==='puntualidad'){ renderHeatmapPunt(); setTimeout(renderChartPunt,50); }
-  if(currentView==='lider') renderLeaderView(currentLeader);
-  populateSelect();
-}
-function switchPuntFilter(val,el){
-  currentPuntFilter=val;
-  document.querySelectorAll('#punt-chips .sess-chip').forEach(c=>c.classList.remove('on'));
-  el.classList.add('on');
-  renderKPIs();
-  if(currentView==='puntualidad'){ renderHeatmapPunt(); setTimeout(renderChartPunt,50); }
-  else{ renderHeatmap(); if(currentView==='general') setTimeout(renderChart,50); }
-  populateSelect();
+  document.getElementById('view-general').style.display   = view==='general'   ?'block':'none';
+  document.getElementById('view-individual').style.display= view==='individual'?'block':'none';
+  const show = view==='individual';
+  document.getElementById('sel-sep').style.display = show?'':'none';
+  document.getElementById('sel-lbl').style.display = show?'':'none';
+  document.getElementById('leader-select').style.display  = show?'':'none';
+  if(show) renderIndividual();
+  else { setTimeout(()=>{renderChart();},50); }
 }
 
-// ══════════ EXPORTAR EXCEL ══════════
-function exportExcel(){
-  if(typeof XLSX==='undefined'){ alert('Librería Excel no cargada. Recarga la página.'); return; }
-  const fl  = filteredLeaders();
-  const fs  = filteredSessions();
-  const isPunt = currentView==='puntualidad';
-  const viewLabel = isPunt ? 'Puntualidad' : 'Asistencias';
-
-  // Cabeceras
-  const headers = ['Nombre','Nivel','Grupo',...fs.map(s=>s.label)];
-
-  // Filas
-  const rows = fl.map(l=>{
-    const cols = fs.map(s=>{
-      const idx = SESSIONS.findIndex(ss=>ss.label===s.label);
-      const sd  = l.sessions[idx];
-      if(!sd) return '—';
-      if(isPunt) return sd.punt==='PUNT'?'Puntual':sd.punt==='TARD'?'Tarde':'—';
-      return sd.att==='SI'?'Asistió':sd.att==='NO'?'Faltó':sd.att==='RET'?'Retirado':'—';
-    });
-    return [l.name, l.nivel||'—', l.grupo||'—', ...cols];
-  });
-
-  // Hoja
-  const ws = XLSX.utils.aoa_to_sheet([headers,...rows]);
-  ws['!cols'] = [{wch:32},{wch:14},{wch:7},...fs.map(()=>({wch:12}))];
-  ws['!freeze'] = {xSplit:0,ySplit:1};
-
-  // Workbook
-  const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, viewLabel);
-
-  // Nombre de archivo
-  const planta = (document.querySelector('.hplant')||{}).textContent||'Planta';
-  const sessTag = currentSessions.size>0?'_'+[...currentSessions].sort().join('-'):'';
-  const fecha   = new Date().toISOString().slice(0,10);
-  XLSX.writeFile(wb, `${planta.trim()}_${viewLabel}${sessTag}_${fecha}.xlsx`);
-}
-
-// ══════════ SWITCH NIVEL ══════════
-function switchNivel(nivel,el){
+function switchNivel(nivel, el){
   currentNivel=nivel;
-  document.querySelectorAll('#nivel-tabs .vtab').forEach(t=>t.classList.remove('on'));
+  document.querySelectorAll('#ctrl-nivel .vtab').forEach(t=>t.classList.remove('on'));
   el.classList.add('on');
-  populateSelect();
   renderKPIs();
-  renderHeatmap();
-  if(currentView==='general') setTimeout(renderChart,50);
-  if(currentView==='puntualidad'){ renderHeatmapPunt(); setTimeout(renderChartPunt,50); }
-  if(currentView==='lider') renderLeaderView(currentLeader);
+  if(currentView==='general'){ renderChart(); renderHeatmap(); }
 }
 
-// ══════════ SWITCH VIEW ══════════
-function switchView(id,el){
-  currentView=id;
-  document.querySelectorAll('.vtab').forEach(t=>t.classList.remove('on'));
-  el.classList.add('on');
-  document.querySelectorAll('.view').forEach(v=>v.classList.remove('on'));
-  document.getElementById('v-'+id).classList.add('on');
-  const isPunt=id==='puntualidad';
-  const isLider=id==='lider';
-  // Ocultar Estado en puntualidad, mostrar Punt. solo en puntualidad
-  ['sep-att','lbl-att','att-chips'].forEach(eid=>{
-    const e=document.getElementById(eid);
-    if(e) e.style.display=isPunt?'none':(eid==='att-chips'?'flex':'');
-  });
-  ['sep-punt-f','lbl-punt-f','punt-chips'].forEach(eid=>{
-    const e=document.getElementById(eid);
-    if(e) e.style.display=isPunt?(eid==='punt-chips'?'flex':''):'none';
-  });
-  // Mostrar filtro Líder solo en vista Por líder
-  ['sep-lider','lbl-lider','sel-leader'].forEach(eid=>{
-    const e=document.getElementById(eid); if(e) e.style.display=isLider?'':'none';
-  });
-  // Al entrar a puntualidad, forzar att=SI internamente (solo asistentes tienen puntualidad)
-  if(isPunt){
-    currentAttFilter='SI';
-    document.querySelectorAll('#att-chips .sess-chip').forEach((c,i)=>c.classList.toggle('on',i===1));
-  }
-  // Al salir de puntualidad, limpiar filtro Punt.
-  if(!isPunt && currentPuntFilter){
-    currentPuntFilter='';
-    document.querySelectorAll('#punt-chips .sess-chip').forEach((c,i)=>c.classList.toggle('on',i===0));
-  }
-  renderKPIs();
-  if(id==='lider') renderLeaderView(currentLeader);
-  if(id==='general') setTimeout(renderChart,50);
-  if(id==='puntualidad'){ renderHeatmapPunt(); setTimeout(renderChartPunt,50); }
-}
-
-// ══════════ TOOLTIP ══════════
-const tip=document.getElementById('tooltip');
-function showTip(e,html){tip.innerHTML=html;tip.classList.add('show');moveTip(e);}
-function moveTip(e){tip.style.left=(e.clientX+12)+'px';tip.style.top=(e.clientY-10)+'px';}
-function hideTip(){tip.classList.remove('show');}
-
-// ══════════ INIT ══════════
+// ─── INIT ─────────────────────────────────────────────────────────────────────
 async function init(){
   try{
-    console.log('[init] Cargando datos…');
-    const ctrl=new AbortController();
-    const tid=setTimeout(()=>ctrl.abort(),15000);
-    const res=await fetch(CSV_URL,{cache:'no-cache',signal:ctrl.signal});
-    clearTimeout(tid);
-    const text=await res.text();
-    if(!text||text.length<100) throw new Error('Respuesta vacía');
-    const rows=parseCSV(text);
-    LEADERS=buildFromCSV(rows);
-    if(!LEADERS.length) throw new Error('Sin datos de líderes');
-  }catch(e){
-    const msg=e.name==='AbortError'
-      ?'Tiempo de espera agotado (15s). Abre la página desde el servidor (Netlify/HTTPS), no como archivo local.'
-      :e.message;
-    document.getElementById('loading').innerHTML=`
-      <div style="text-align:center;color:#dc2626;font-size:.85rem;padding:20px">
-        <div style="font-size:2rem;margin-bottom:8px">⚠</div>
-        <b>${msg}</b><br>
-        <span style="color:#64748b;font-size:.72rem">Verifica tu conexión o la URL del CSV</span><br><br>
-        <button onclick="location.reload()" style="padding:5px 14px;background:#2563eb;color:#fff;border:none;border-radius:6px;cursor:pointer">Reintentar</button>
+    const res  = await fetch(CSV_URL,{cache:'no-cache'});
+    const text = await res.text();
+    const rows = parseCSV(text);
+    LEADERS    = buildFromCSV(rows);
+
+    document.getElementById('loading').style.display='none';
+    document.getElementById('meta-badge').textContent='META progresiva por quincena';
+
+    // Populate leader select
+    const sel=document.getElementById('leader-select');
+    sel.innerHTML=LEADERS.map(l=>`<option value="${l.name}">${l.name}</option>`).join('');
+    sel.addEventListener('change', renderIndividual);
+
+    populateQuincenaChips();
+    renderKPIs();
+    renderChart();
+    renderHeatmap();
+    (()=>{ const el=document.getElementById('last-update'); if(el) el.textContent='⟳ '+new Date().toLocaleTimeString('es-PE',{hour:'2-digit',minute:'2-digit',second:'2-digit'}); })();
+
+    // Auto-refresh cada 30 segundos
+    setInterval(async ()=>{
+      try{
+        const r2  = await fetch(CSV_URL,{cache:'no-cache'});
+        const tx2 = await r2.text();
+        const nv  = buildFromCSV(parseCSV(tx2));
+        if(JSON.stringify(nv)!==JSON.stringify(LEADERS)){
+          LEADERS=nv;
+          renderKPIs();
+          if(currentView==='general'){ renderHeatmap(); setTimeout(renderChart,50); }
+          else renderIndividual();
+        }
+        const el=document.getElementById('last-update');
+        if(el) el.textContent='⟳ '+new Date().toLocaleTimeString('es-PE',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
+      }catch(e){}
+    },30000);
+
+    // Responsiveness
+    if(window.ResizeObserver){
+      let _rt;
+      new ResizeObserver(()=>{
+        clearTimeout(_rt);
+        _rt=setTimeout(()=>{ if(currentView==='general') renderChart(); },120);
+      }).observe(document.querySelector('.chart-wrap'));
+    }
+  } catch(e){
+    document.getElementById('loading').innerHTML=
+      `<div style="color:#dc2626;font-size:.8rem;padding:20px;text-align:center;">
+        Error al cargar datos:<br><strong>${e.message}</strong>
       </div>`;
-    return;
-  }
-
-  populateSessions();
-  populateGrupoChips();
-  renderKPIs();
-  populateSelect();
-  renderHeatmap();
-  renderChart();
-  document.getElementById('loading').style.display='none';
-  (()=>{ const el=document.getElementById('last-update'); if(el) el.textContent='⟳ '+new Date().toLocaleTimeString('es-PE',{hour:'2-digit',minute:'2-digit',second:'2-digit'}); })();
-
-  // Auto-refresh cada 30 segundos
-  setInterval(async ()=>{
-    try{
-      const r2  = await fetch(CSV_URL,{cache:'no-cache'});
-      const tx2 = await r2.text();
-      const nv  = buildFromCSV(parseCSV(tx2));
-      if(JSON.stringify(nv)!==JSON.stringify(LEADERS)){
-        LEADERS=nv;
-        populateGrupoChips();
-        renderKPIs();
-        if(currentView==='general'){ renderHeatmap(); setTimeout(renderChart,50); }
-        else if(currentView==='puntualidad'){ renderHeatmapPunt(); setTimeout(renderChartPunt,50); }
-        else renderLeaderView(currentLeader);
-      }
-      const el=document.getElementById('last-update');
-      if(el) el.textContent='⟳ '+new Date().toLocaleTimeString('es-PE',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
-    }catch(e){}
-  },30000);
-
-  // Responsividad: re-renderiza el gráfico al cambiar el tamaño del contenedor
-  if(window.ResizeObserver){
-    let _rt;
-    new ResizeObserver(()=>{
-      clearTimeout(_rt);
-      _rt=setTimeout(()=>{ if(currentView==='general') renderChart(); },120);
-    }).observe(document.querySelector('.chart-wrap'));
   }
 }
 
-window.addEventListener('load',init);
+document.addEventListener('DOMContentLoaded', init);
 </script>
 </body>
 </html>
