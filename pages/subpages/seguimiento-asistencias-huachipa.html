@@ -836,6 +836,7 @@ function switchSession(label,el){
   renderKPIs();
   renderHeatmap();
   if(currentView==='general') setTimeout(renderChart,50);
+  if(currentView==='puntualidad'){ renderHeatmapPunt(); setTimeout(renderChartPunt,50); }
 }
 
 // ══════════ GRUPO CHIPS ══════════
@@ -858,6 +859,7 @@ function switchGrupo(g,el){
   else{currentGrupos.add(g);el.classList.add('on');}
   renderKPIs(); renderHeatmap();
   if(currentView==='general') setTimeout(renderChart,50);
+  if(currentView==='puntualidad'){ renderHeatmapPunt(); setTimeout(renderChartPunt,50); }
 }
 
 // ══════════ SWITCH NIVEL ══════════
@@ -869,6 +871,7 @@ function switchNivel(nivel,el){
   renderKPIs();
   renderHeatmap();
   if(currentView==='general') setTimeout(renderChart,50);
+  if(currentView==='puntualidad'){ renderHeatmapPunt(); setTimeout(renderChartPunt,50); }
   if(currentView==='lider') renderLeaderView(currentLeader);
 }
 
@@ -894,18 +897,25 @@ function hideTip(){tip.classList.remove('show');}
 // ══════════ INIT ══════════
 async function init(){
   try{
-    const res=await fetch(CSV_URL,{cache:'no-cache'});
+    console.log('[init] Cargando datos…');
+    const ctrl=new AbortController();
+    const tid=setTimeout(()=>ctrl.abort(),15000);
+    const res=await fetch(CSV_URL,{cache:'no-cache',signal:ctrl.signal});
+    clearTimeout(tid);
     const text=await res.text();
     if(!text||text.length<100) throw new Error('Respuesta vacía');
     const rows=parseCSV(text);
     LEADERS=buildFromCSV(rows);
     if(!LEADERS.length) throw new Error('Sin datos de líderes');
   }catch(e){
+    const msg=e.name==='AbortError'
+      ?'Tiempo de espera agotado (15s). Abre la página desde el servidor (Netlify/HTTPS), no como archivo local.'
+      :e.message;
     document.getElementById('loading').innerHTML=`
       <div style="text-align:center;color:#dc2626;font-size:.85rem;padding:20px">
         <div style="font-size:2rem;margin-bottom:8px">⚠</div>
-        <b>${e.message}</b><br>
-        <span style="color:#64748b;font-size:.72rem">Verifica que la URL CSV esté configurada correctamente</span><br><br>
+        <b>${msg}</b><br>
+        <span style="color:#64748b;font-size:.72rem">Verifica tu conexión o la URL del CSV</span><br><br>
         <button onclick="location.reload()" style="padding:5px 14px;background:#2563eb;color:#fff;border:none;border-radius:6px;cursor:pointer">Reintentar</button>
       </div>`;
     return;
