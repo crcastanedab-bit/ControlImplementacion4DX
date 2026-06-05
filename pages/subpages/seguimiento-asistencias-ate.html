@@ -191,8 +191,8 @@ table.hm th,table.hm td{border:1px solid #f1f5f9;white-space:nowrap;}
     <div class="sess-chip" onclick="switchAttFilter('NO',this)">✗ Faltó</div>
     <div class="sess-chip" onclick="switchAttFilter('RET',this)">↩ Retirado</div>
   </div>
-  <span class="sep" id="sep-punt-f">|</span>
-  <span class="ctrl-label" id="lbl-punt-f">Punt.</span>
+  <span class="sep" id="sep-punt-f" style="display:none;">|</span>
+  <span class="ctrl-label" id="lbl-punt-f" style="display:none;">Punt.</span>
   <div style="display:flex;gap:4px;flex-wrap:wrap;" id="punt-chips" style="display:none;">
     <div class="sess-chip on" onclick="switchPuntFilter('',this)">Todos</div>
     <div class="sess-chip" onclick="switchPuntFilter('PUNT',this)">✓ Puntual</div>
@@ -433,6 +433,7 @@ function filteredLeaders(){
     const fsLabels=new Set(filteredSessions().map(s=>s.label));
     const opposite=currentPuntFilter==='TARD'?'PUNT':'TARD';
     result=result.filter(l=>
+      !l.sessions.some((s,i)=>fsLabels.has(SESSIONS[i].label)&&s.att==='NO')&&
       l.sessions.some((s,i)=>fsLabels.has(SESSIONS[i].label)&&s.att==='SI'&&s.punt===currentPuntFilter)&&
       !l.sessions.some((s,i)=>fsLabels.has(SESSIONS[i].label)&&s.att==='SI'&&s.punt===opposite)
     );
@@ -558,7 +559,8 @@ function renderHeatmap(){
       const cls = s.att==='SI'?'si':s.att==='NO'?'no':s.att==='RET'?'ret':'empty';
       td.className='hm-cell '+cls+(isDimCell?' dim':'');
       td.textContent = s.att==='SI'?'✓':s.att==='NO'?'✗':s.att==='RET'?'↩':'—';
-      if(s.att==='NO'&&s.motivo){
+      if(s.motivo){
+        td.style.cursor='pointer';
         td.addEventListener('mouseenter',e=>showTip(e,`<b>${l.short} · ${s.label}</b><br>${s.motivo}`));
         td.addEventListener('mousemove',moveTip);
         td.addEventListener('mouseleave',hideTip);
