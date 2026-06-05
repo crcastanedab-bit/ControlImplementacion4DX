@@ -153,11 +153,11 @@ table.hm th,table.hm td{border:1px solid #f1f5f9;white-space:nowrap;}
 
 <!-- ── KPIs ── -->
 <div class="kpi-row">
-  <div class="kpi"><div class="kv blue" id="k-lideres">—</div><div class="kl">Líderes</div></div>
-  <div class="kpi"><div class="kv green" id="k-asist">—</div><div class="kl">Asistencias</div></div>
-  <div class="kpi"><div class="kv red" id="k-faltas">—</div><div class="kl">Faltas</div></div>
-  <div class="kpi"><div class="kv amber" id="k-pct">—</div><div class="kl">% Asistencia</div></div>
-  <div class="kpi"><div class="kv orange" id="k-retir">—</div><div class="kl">Retirados</div></div>
+  <div class="kpi"><div class="kv blue" id="k-lideres">—</div><div class="kl" id="kl-lideres">Líderes</div></div>
+  <div class="kpi"><div class="kv green" id="k-asist">—</div><div class="kl" id="kl-asist">Asistencias</div></div>
+  <div class="kpi"><div class="kv red" id="k-faltas">—</div><div class="kl" id="kl-faltas">Faltas</div></div>
+  <div class="kpi"><div class="kv amber" id="k-pct">—</div><div class="kl" id="kl-pct">% Asistencia</div></div>
+  <div class="kpi"><div class="kv orange" id="k-retir">—</div><div class="kl" id="kl-retir">Retirados</div></div>
 </div>
 
 <!-- ── CONTROLES ── -->
@@ -443,6 +443,15 @@ function renderKPIsAsist(){
   document.getElementById('k-faltas').textContent  = faltas;
   document.getElementById('k-retir').textContent   = retirados;
   document.getElementById('k-pct').textContent     = pct+'%';
+  // Restaurar clases de color y etiquetas originales (pueden haber cambiado en la vista Puntualidad)
+  document.getElementById('k-asist').className  = 'kv green';
+  document.getElementById('k-faltas').className = 'kv red';
+  document.getElementById('k-pct').className    = 'kv amber';
+  document.getElementById('k-retir').className  = 'kv orange';
+  document.getElementById('kl-asist').textContent = 'Asistencias';
+  document.getElementById('kl-faltas').textContent = 'Faltas';
+  document.getElementById('kl-pct').textContent   = '% Asistencia';
+  document.getElementById('kl-retir').textContent  = 'Retirados';
   document.getElementById('hbadge').textContent    = total+' '+nivelLbl+' · '+sessLbl;
 }
 
@@ -461,13 +470,19 @@ function renderKPIsPunt(){
   const pct=total_p>0?Math.round(punt/total_p*100):0;
   const pctColor=pct>=80?'green':pct>=60?'amber':'red';
   const sessLbl=currentSessions.size===0?'S1–S'+(SESSIONS.length||8):[...currentSessions].sort().join(' + ');
-  document.getElementById('kpi-row').innerHTML=`
-    <div class="kpi"><div class="kv blue">${total}</div><div class="kl">Líderes</div></div>
-    <div class="kpi"><div class="kv green">${punt}</div><div class="kl">Puntuales</div></div>
-    <div class="kpi"><div class="kv amber">${tard}</div><div class="kl">Tardanzas</div></div>
-    <div class="kpi"><div class="kv ${pctColor}">${pct}%</div><div class="kl">% Puntualidad</div></div>
-  `;
-  document.getElementById('hbadge').textContent=total+' líderes · '+sessLbl;
+  document.getElementById('k-lideres').textContent  = total;
+  document.getElementById('k-asist').textContent    = punt;
+  document.getElementById('k-asist').className      = 'kv green';
+  document.getElementById('kl-asist').textContent   = 'Puntuales';
+  document.getElementById('k-faltas').textContent   = tard;
+  document.getElementById('k-faltas').className     = 'kv amber';
+  document.getElementById('kl-faltas').textContent  = 'Tardanzas';
+  document.getElementById('k-pct').textContent      = pct+'%';
+  document.getElementById('k-pct').className        = 'kv '+pctColor;
+  document.getElementById('kl-pct').textContent     = '% Puntualidad';
+  document.getElementById('k-retir').textContent    = '—';
+  document.getElementById('kl-retir').textContent   = '—';
+  document.getElementById('hbadge').textContent     = total+' líderes · '+sessLbl;
 }
 
 // ══════════ HEATMAP ══════════
