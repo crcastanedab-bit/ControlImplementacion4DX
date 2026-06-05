@@ -286,9 +286,9 @@ function buildLeadersFromCSV(rows) {
   });
 
   const withTeam = data.filter(r => {
-    const eq = (r[C.equipo]||'').trim().toUpperCase().replace(/Í/g,'I').replace(/Ì/g,'I');
     const gr = (r[C.grupos]||'').trim();
-    return eq === 'SI' && gr && gr !== '-';
+    const members = gr.split(/[,\n]+/).map(m=>m.replace(/\*/g,'').trim()).filter(m=>m&&m!=='-'&&m.length>1);
+    return members.length > 0;
   });
 
   const leaders = withTeam.map(r => {
@@ -311,24 +311,19 @@ function buildLeadersFromCSV(rows) {
     };
   });
 
-  // Detect dual roles: leader whose last name appears in another leader's team
+  // Detect dual roles: líder cuyo nombre completo matchea un entry en el grupo de otro
+  // Regla: todos los tokens del entry del CSV deben estar en el nombre completo del líder
+  function normN(s){ return (s||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/\s+/g,' ').trim(); }
   leaders.forEach(leader => {
-    const parts = leader.full.split(/\s+/);
-    // apellido1: word[2] if 4+ words (double first name), else word[1]
-    const apellido = (parts.length >= 4 ? parts[2] : parts[1] || '').toLowerCase();
-    const firstName = (parts[0]||'').toLowerCase();
-
+    const lnFull = normN(leader.full);
     leaders.forEach(other => {
       if (other.id === leader.id || leader.dual) return;
       const inOther = other.members.some(m => {
-        const ml = m.toLowerCase().replace(/\s+/g,' ');
-        return (apellido.length > 3 && ml.includes(apellido)) ||
-               (firstName.length > 4 && ml.startsWith(firstName));
+        const mn = normN(m.replace(/\*/g,'').trim());
+        const words = mn.split(/\s+/).filter(w => w.length > 1);
+        return words.length >= 2 && words.every(w => lnFull.includes(w));
       });
-      if (inOther) {
-        leader.dual = true;
-        leader.dualIn = other.full;
-      }
+      if (inOther) { leader.dual = true; leader.dualIn = other.full; }
     });
   });
 
@@ -458,16 +453,7 @@ function renderCards() {
     });
     h += '</div>';
     div.innerHTML += h;
-    const ac = l.a1==='SI'?'g':l.a1==='NO'?'r':'n';
-    const a2c = l.a2==='SI'?'g':l.a2==='NO'?'r':'n';
-    const gc = l.ag==='SI'?'g':l.ag==='NO'?'r':'n';
-    const s2pill = l.a2 ? `<span class="pill ${a2c}">S2 ${l.a2}</span>` : '';
-    div.innerHTML += `<div class="foot">
-      <span class="pill ${ac}">S1 ${l.a1||'—'}</span>
-      ${s2pill}
-      <span class="pill ${gc}">Ag. ${l.ag||'—'}</span>
-      <span class="pill n">${l.members.length}👥</span>
-    </div>`;
+    div.innerHTML += `<div class="foot"><span class="pill n">${l.members.length}👥</span></div>`;
     grid.appendChild(div);
   });
 }
@@ -509,15 +495,16 @@ function buildNetwork() {
     nodes.push(nodeMap[l.id]);
   });
 
-  // ── 2. Detectar si un nombre de miembro corresponde a un líder
+  // ── 2. Detectar si un entry del CSV corresponde a un líder
+  // Regla: todos los tokens del entry deben aparecer en el nombre completo del líder,
+  // y debe haber mínimo 2 tokens (evita falsos positivos con nombres de una sola palabra)
   function normStr(s){ return (s||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/\s+/g,' ').trim(); }
   function findLeaderNode(memberName){
-    const mn = normStr(memberName);
+    const words = normStr(memberName).split(/\s+/).filter(w=>w.length>1);
+    if(words.length < 2) return null; // una sola palabra es demasiado ambigua
     for(const l of ACTIVE_LEADERS){
-      const parts = l.full.split(/\s+/);
-      const ap = normStr(parts.length>=4 ? parts[2] : (parts[1]||''));
-      const fn = normStr(parts[0]||'');
-      if((ap.length>3 && mn.includes(ap))||(fn.length>4 && mn.startsWith(fn))) return l.id;
+      const ln = normStr(l.full);
+      if(words.every(w => ln.includes(w))) return l.id;
     }
     return null;
   }
@@ -550,27 +537,48 @@ function buildNetwork() {
     memberToNodeId[m] = nodeId;
   });
 
-  // ── 5. Links — sin self-links ni duplicados
+  // ── 5. Links — sin self-links, duplicados ni redundancias jerárquicas
   const linkSet = new Set();
+  // Para cada líder, detectar qué otros líderes están en su grupo (sub-líderes directos)
+  const subLeadersOf = {};
+  ACTIVE_LEADERS.forEach(l => {
+    subLeadersOf[l.id] = new Set();
+    l.members.forEach(m => {
+      const k = m.replace(/\*/g,'').trim();
+      const tId = memberToNodeId[k];
+      if(tId && tId!==l.id && nodeMap[tId]?.type==='leader') subLeadersOf[l.id].add(tId);
+    });
+  });
+  // Link redundante: miembro puro ya accesible a través de un sub-líder → saltar
+  function isRedundant(parentId, memberNodeId){
+    for(const subId of (subLeadersOf[parentId]||[])){
+      const sub = ACTIVE_LEADERS.find(l=>l.id===subId);
+      if(sub && sub.members.some(m=>memberToNodeId[m.replace(/\*/g,'').trim()]===memberNodeId)) return true;
+    }
+    return false;
+  }
   ACTIVE_LEADERS.forEach(l => l.members.forEach(m => {
     const k = m.replace(/\*/g,'').trim();
     const targetId = memberToNodeId[k];
     if(!targetId || targetId===l.id) return;
+    // Saltar si el miembro puro ya está bajo un sub-líder de este líder
+    if(nodeMap[targetId]?.type==='member' && isRedundant(l.id, targetId)) return;
     const key = l.id+'→'+targetId;
     if(linkSet.has(key)) return;
     linkSet.add(key);
     const tNode = nodeMap[targetId];
-    const shared = tNode?.type==='member' ? tNode.teamCount>1 : true;
+    // Líder→líder: línea sólida (jerárquica). Miembro compartido: línea dashed.
+    const shared = tNode?.type==='member' ? tNode.teamCount>1 : false;
     links.push({ source:l.id, target:targetId, shared });
   }));
 
   const sim = d3.forceSimulation(nodes)
-    .force('link', d3.forceLink(links).id(d=>d.id).distance(d=>d.shared?36:28).strength(d=>d.shared?.45:.75))
-    .force('charge', d3.forceManyBody().strength(d=>d.type==='leader'?-110:-28))
-    .force('center', d3.forceCenter(cx,cy).strength(.05))
-    .force('radial', d3.forceRadial(d=>d.type==='leader'?R:0,cx,cy).strength(d=>d.type==='leader'?.28:0))
-    .force('collide', d3.forceCollide(d=>d.size+6))
-    .alphaDecay(.022);
+    .force('link', d3.forceLink(links).id(d=>d.id).distance(d=>d.shared?60:45).strength(d=>d.shared?.3:.6))
+    .force('charge', d3.forceManyBody().strength(d=>d.type==='leader'?-220:-70))
+    .force('center', d3.forceCenter(cx,cy).strength(.04))
+    .force('radial', d3.forceRadial(d=>d.type==='leader'?R:0,cx,cy).strength(d=>d.type==='leader'?.25:0))
+    .force('collide', d3.forceCollide(d=>d.size+20))
+    .alphaDecay(.018);
 
   const linkSel = g.append('g').selectAll('line').data(links).join('line')
     .style('stroke','#94a3b8').style('stroke-opacity',.28)
@@ -739,10 +747,21 @@ function moveTip(e) {
 }
 function hideTip() { tip.style.opacity = 0; }
 
-// ════════════ VIEW 3: MATRIX ════════════
+// ════════════ VIEW 3: MATRIX (Opción C — solo líderes con intersecciones) ════════════
 function buildMatrix() {
   const shared = Object.entries(memberCount)
     .filter(([,c])=>c>=2).sort((a,b)=>b[1]-a[1]).map(([m])=>m);
+
+  // Solo líderes que tienen al menos un miembro compartido, ordenados por # de intersecciones
+  const leadersWithIntersections = ACTIVE_LEADERS
+    .map(l => {
+      const set = new Set(l.members.map(m=>m.replace(/\*/g,'').trim()));
+      const count = shared.filter(m=>set.has(m)).length;
+      return { l, set, count };
+    })
+    .filter(({count})=>count>0)
+    .sort((a,b)=>b.count-a.count);
+
   const tbl = document.getElementById('mx-tbl');
   const thead = tbl.createTHead(); const hr = thead.insertRow();
   const corner = document.createElement('th');
@@ -751,7 +770,7 @@ function buildMatrix() {
   corner.style.transform = 'none';
   corner.style.fontSize = '.61rem';
   corner.style.color = '#94a3b8';
-  corner.textContent = 'Líder ↓ / Miembro →';
+  corner.textContent = `Líder ↓ / Miembro → (${leadersWithIntersections.length} líderes con contactos compartidos)`;
   hr.appendChild(corner);
   shared.forEach(m => {
     const th = document.createElement('th'); th.className = 'rh'; th.title = m;
@@ -760,18 +779,20 @@ function buildMatrix() {
     th.textContent = m.split(' ')[0]; hr.appendChild(th);
   });
   const tbody = tbl.createTBody();
-  ACTIVE_LEADERS.forEach(l => {
-    const set = new Set(l.members.map(m=>m.replace(/\*/g,'').trim()));
+  leadersWithIntersections.forEach(({l, set, count}) => {
     const row = tbody.insertRow();
     const th = document.createElement('th'); th.className = 'ch';
-    th.style.borderLeft = '3px solid #94a3b8'; th.style.color = '#475569';
-    th.textContent = l.short; row.appendChild(th);
+    // Color del borde según intensidad de intersección
+    const borderCol = count>=4?'#dc2626':count>=3?'#f97316':count>=2?'#f59e0b':'#94a3b8';
+    th.style.borderLeft = `3px solid ${borderCol}`; th.style.color = '#475569';
+    th.innerHTML = `${l.short} <span style="font-size:.58rem;color:#94a3b8;font-weight:400">${count}×</span>`;
+    row.appendChild(th);
     shared.forEach(m => {
       const td = row.insertCell(); td.className = 'mc';
       if (set.has(m)) {
         const c = memberCount[m];
         td.className += ' '+(c>=4?'c4':c>=3?'c3':c>=2?'c2':'c1');
-        td.textContent = '✓'; td.title = `${l.short} → ${m} (${c} equipos)`;
+        td.textContent = '✓'; td.title = `${l.short} → ${m} (en ${c} equipos)`;
       }
     });
   });
