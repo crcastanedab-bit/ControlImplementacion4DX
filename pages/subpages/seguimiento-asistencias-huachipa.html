@@ -308,21 +308,27 @@ function buildFromCSV(rows){
         num:      parseInt(m[1]),
         label:    'S'+m[1],
         attIdx:   i,
-        motiIdx:  i+1,   // columna siguiente = Motivos y causas
-        tiempoIdx:i+2    // columna siguiente = Tiempo evidenciado
+        motiIdx:  -1,   // se calcula abajo por nombre
+        tiempoIdx:-1    // se calcula abajo por nombre
       });
     }
   });
   SESSIONS.sort((a,b)=>a.num-b.num);
-  // Detectar columnas de puntualidad: "Puntualidad S1", "Puntualidad S2", etc.
-  headers.forEach((h,i)=>{
-    const m=h.match(/puntual\w*[\s\-]?s\s*(\d+)/);
-    if(m){
-      const sess=SESSIONS.find(s=>s.num===parseInt(m[1]));
-      if(sess) sess.puntIdx=i;
-    }
+  // Detectar motiIdx y tiempoIdx por nombre de columna
+  SESSIONS.forEach(s=>{
+    const sn=String(s.num);
+    s.motiIdx  = headers.findIndex(h=>(h.includes('motiv')||h.includes('causa'))&&(h.includes('s'+sn)||h.endsWith(sn)));
+    s.tiempoIdx= headers.findIndex(h=>h.includes('tiempo')&&h.includes('quincena'));
+    // fallback posicional si no se detecta por nombre
+    if(s.motiIdx<0)  s.motiIdx  = s.attIdx+2; // asistencia→puntualidad→motivos
+    if(s.tiempoIdx<0) s.tiempoIdx= s.attIdx+3;
   });
-  SESSIONS.forEach(s=>{ if(s.puntIdx===undefined) s.puntIdx=-1; });
+  // Detectar columnas de puntualidad por nombre
+  SESSIONS.forEach(s=>{
+    const sTag = 's'+s.num; // 's1','s2'...
+    s.puntIdx = headers.findIndex(h=>h.includes('puntual')&&(h.includes(sTag)||h.endsWith(String(s.num))));
+  });
+  console.log('Puntualidad idx:', SESSIONS.map(s=>s.label+'->punt@'+s.puntIdx));
   console.log('Sesiones detectadas:', SESSIONS.map(s=>s.label+'@'+s.attIdx));
 
   // ── 4. Extraer fechas y nivel de las filas anteriores al header ──
