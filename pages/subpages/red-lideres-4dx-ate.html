@@ -176,11 +176,11 @@ table.mx .mc{width:22px;min-width:22px;max-width:22px;height:22px;text-align:cen
     <div class="net-tip" id="net-tip"></div>
     <div class="net-leg">
       <h5>Leyenda</h5>
-      <div class="lr"><div class="ls" style="background:#475569;clip-path:polygon(50% 0%,100% 50%,50% 100%,0% 50%)"></div>Líder intermedio</div>
-      <div class="lr"><div class="ls" style="background:#475569;clip-path:polygon(50% 0%,100% 50%,50% 100%,0% 50%);outline:2px solid #f59e0b"></div>Doble rol ⚡</div>
-      <div class="lr"><div class="ls" style="background:#4ade80;border-radius:50%"></div>Miembro único</div>
-      <div class="lr"><div class="ls" style="background:#f59e0b;border-radius:50%"></div>Compartido ×2</div>
-      <div class="lr"><div class="ls" style="background:#f97316;border-radius:50%"></div>Compartido ×3+</div>
+      <div class="lr"><div class="ls" style="background:#475569;clip-path:polygon(50% 0%,100% 50%,50% 100%,0% 50%);width:13px;height:13px"></div>Líder puro (T1)</div>
+      <div class="lr"><div class="ls" style="background:#475569;clip-path:polygon(50% 0%,100% 50%,50% 100%,0% 50%);outline:2px solid #f59e0b;width:9px;height:9px"></div>Líder subordinado (T2)</div>
+      <div class="lr"><div class="ls" style="background:#4ade80;border-radius:50%;width:6px;height:6px"></div>Miembro puro (T3)</div>
+      <div class="lr"><div class="ls" style="background:#f59e0b;border-radius:50%;width:6px;height:6px"></div>Compartido ×2</div>
+      <div class="lr"><div class="ls" style="background:#f97316;border-radius:50%;width:6px;height:6px"></div>Compartido ×3+</div>
       <div style="margin-top:5px;color:#94a3b8;font-size:.61rem">Click en líder → ver sus conexiones<br>Scroll → zoom · Drag → mover</div>
     </div>
   </div>
@@ -492,40 +492,76 @@ function buildNetwork() {
 
   const nodeMap = {}, nodes = [], links = [];
 
+  // ── 1. Nodos líderes — tamaño por rango:
+  //   Tier 1: líder puro (no está en grupo de nadie) → grande (13-22)
+  //   Tier 2: líder subordinado (dual rol) → mediano (9-15)
   ACTIVE_LEADERS.forEach((l, i) => {
     const ang = (2*Math.PI*i/N) - Math.PI/2;
+    const sz = l.dual
+      ? Math.min(15, Math.max(9,  8 + l.members.length * 0.6))   // Tier 2
+      : Math.min(22, Math.max(13, 11 + l.members.length * 0.9));  // Tier 1
     nodeMap[l.id] = {
       id: l.id, full: l.full, short: l.short, type: 'leader',
       a1: l.a1, a2: l.a2, ag: l.ag, dual: l.dual||false, dualIn: l.dualIn,
-      mCount: l.members.length, size: 12,
+      mCount: l.members.length, size: sz,
       x: cx + R*Math.cos(ang), y: cy + R*Math.sin(ang)
     };
     nodes.push(nodeMap[l.id]);
   });
 
+  // ── 2. Detectar si un nombre de miembro corresponde a un líder
+  function normStr(s){ return (s||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/\s+/g,' ').trim(); }
+  function findLeaderNode(memberName){
+    const mn = normStr(memberName);
+    for(const l of ACTIVE_LEADERS){
+      const parts = l.full.split(/\s+/);
+      const ap = normStr(parts.length>=4 ? parts[2] : (parts[1]||''));
+      const fn = normStr(parts[0]||'');
+      if((ap.length>3 && mn.includes(ap))||(fn.length>4 && mn.startsWith(fn))) return l.id;
+    }
+    return null;
+  }
+
+  // ── 3. Agrupar membresías por nombre
   const mTeams = {};
   ACTIVE_LEADERS.forEach(l => l.members.forEach(m => {
     const k = m.replace(/\*/g,'').trim();
-    if (!mTeams[k]) mTeams[k] = [];
+    if(!mTeams[k]) mTeams[k]=[];
     mTeams[k].push(l.id);
   }));
 
+  // ── 4. Nodos miembros — solo si NO es ya un líder (evita duplicados)
+  const memberToNodeId = {};
   Object.entries(mTeams).forEach(([m, teams]) => {
     const cnt = teams.length;
+    const leaderMatch = findLeaderNode(m);
+    if(leaderMatch){ memberToNodeId[m] = leaderMatch; return; } // reusar nodo líder
     const col = cnt>=4?'#ef4444':cnt>=3?'#f97316':cnt>=2?'#f59e0b':'#4ade80';
     const fl = nodeMap[teams[0]];
-    nodeMap['m_'+m] = {
-      id: 'm_'+m, label: m, type: 'member', col, size: cnt>1?7:5,
-      teamCount: cnt, teams,
-      x: fl?(fl.x+(Math.random()-.5)*45):cx,
-      y: fl?(fl.y+(Math.random()-.5)*45):cy
+    const sz = Math.min(8, 3 + cnt * 1.5); // Tier 3: siempre menor que cualquier líder
+    const nodeId = 'm_'+m;
+    nodeMap[nodeId] = {
+      id: nodeId, label: m, type: 'member', col,
+      size: sz, teamCount: cnt, teams,
+      x: fl ? fl.x+(Math.random()-.5)*45 : cx,
+      y: fl ? fl.y+(Math.random()-.5)*45 : cy
     };
-    nodes.push(nodeMap['m_'+m]);
+    nodes.push(nodeMap[nodeId]);
+    memberToNodeId[m] = nodeId;
   });
 
+  // ── 5. Links — sin self-links ni duplicados
+  const linkSet = new Set();
   ACTIVE_LEADERS.forEach(l => l.members.forEach(m => {
-    const k = 'm_'+m.replace(/\*/g,'').trim();
-    if (nodeMap[k]) links.push({ source:l.id, target:k, shared:nodeMap[k].teamCount>1 });
+    const k = m.replace(/\*/g,'').trim();
+    const targetId = memberToNodeId[k];
+    if(!targetId || targetId===l.id) return;
+    const key = l.id+'→'+targetId;
+    if(linkSet.has(key)) return;
+    linkSet.add(key);
+    const tNode = nodeMap[targetId];
+    const shared = tNode?.type==='member' ? tNode.teamCount>1 : true;
+    links.push({ source:l.id, target:targetId, shared });
   }));
 
   const sim = d3.forceSimulation(nodes)
