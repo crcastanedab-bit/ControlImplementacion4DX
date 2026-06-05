@@ -286,9 +286,10 @@ function buildLeadersFromCSV(rows) {
   });
 
   const withTeam = data.filter(r => {
-    const eq = (r[C.equipo]||'').trim().toUpperCase().replace(/Í/g,'I').replace(/Ì/g,'I');
     const gr = (r[C.grupos]||'').trim();
-    return eq === 'SI' && gr && gr !== '-';
+    // Líder = quien tiene miembros reales en Grupos (no depende del campo "equipo")
+    const members = gr.split(/[,\n]+/).map(m=>m.replace(/\*/g,'').trim()).filter(m=>m&&m!=='-'&&m.length>1);
+    return members.length > 0;
   });
 
   const leaders = withTeam.map(r => {
