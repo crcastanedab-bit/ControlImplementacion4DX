@@ -30,7 +30,7 @@ header{background:linear-gradient(90deg,#1e3a8a,#1d4ed8,#2563eb);padding:11px 24
 .kpi:last-child{border-right:none;}
 .kv{font-size:1.4rem;font-weight:800;line-height:1;}
 .kl{font-size:.59rem;color:#94a3b8;text-transform:uppercase;letter-spacing:.4px;margin-top:3px;}
-.kv.blue{color:#2563eb;} .kv.green{color:#16a34a;} .kv.red{color:#dc2626;} .kv.amber{color:#d97706;}
+.kv.blue{color:#2563eb;} .kv.green{color:#16a34a;} .kv.red{color:#dc2626;} .kv.amber{color:#d97706;} .kv.orange{color:#ea580c;}
 
 /* ─── CONTROLES ─── */
 .ctrl-bar{background:#fff;border-bottom:1px solid #e2e8f0;padding:8px 20px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
@@ -67,6 +67,8 @@ table.hm th,table.hm td{border:1px solid #f1f5f9;white-space:nowrap;}
 .hm-cell.si{background:#dcfce7;color:#16a34a;}
 .hm-cell.no{background:#fee2e2;color:#dc2626;cursor:pointer;}
 .hm-cell.no:hover{background:#fecaca;}
+.hm-cell.ret{background:#fff7ed;color:#ea580c;}
+.hm-cell.ret:hover{background:#ffedd5;}
 .hm-cell.empty{background:#f8fafc;color:#cbd5e1;}
 .hm-cell.dim,.hm-col-head.dim{opacity:.25;pointer-events:none;}
 .corner{position:sticky;top:0;left:0;z-index:4;background:#f1f5f9;padding:6px 12px;font-size:.58rem;color:#94a3b8;border-right:2px solid #e2e8f0;}
@@ -100,12 +102,14 @@ table.hm th,table.hm td{border:1px solid #f1f5f9;white-space:nowrap;}
 .sess-card{background:#fff;border:1px solid #e2e8f0;border-radius:10px;overflow:hidden;}
 .sess-card.si{border-top:3px solid #22c55e;}
 .sess-card.no{border-top:3px solid #f87171;}
+.sess-card.ret{border-top:3px solid #fb923c;}
 .sess-card.empty{border-top:3px solid #e2e8f0;}
 .sc-head{padding:10px 12px 8px;display:flex;align-items:center;justify-content:space-between;}
 .sc-snum{font-size:.7rem;font-weight:700;color:#64748b;}
 .sc-badge{font-size:.65rem;font-weight:700;padding:2px 8px;border-radius:6px;}
 .sc-badge.si{background:#f0fdf4;color:#16a34a;}
 .sc-badge.no{background:#fef2f2;color:#dc2626;}
+.sc-badge.ret{background:#fff7ed;color:#ea580c;}
 .sc-badge.empty{background:#f8fafc;color:#94a3b8;}
 .sc-body{padding:0 12px 12px;}
 .sc-date{font-size:.59rem;color:#94a3b8;margin-bottom:5px;}
@@ -146,6 +150,7 @@ table.hm th,table.hm td{border:1px solid #f1f5f9;white-space:nowrap;}
   <div class="kpi"><div class="kv green" id="k-asist">—</div><div class="kl">Asistencias</div></div>
   <div class="kpi"><div class="kv red" id="k-faltas">—</div><div class="kl">Faltas</div></div>
   <div class="kpi"><div class="kv amber" id="k-pct">—</div><div class="kl">% Asistencia</div></div>
+  <div class="kpi"><div class="kv orange" id="k-retir">—</div><div class="kl">Retirados</div></div>
 </div>
 
 <!-- ── CONTROLES ── -->
@@ -234,6 +239,7 @@ function normalizeAtt(v){
   const n=nrm(v);
   if(n==='si'||n==='s'||n==='yes'||n==='y'||n==='1')return'SI';
   if(n==='no'||n==='n'||n==='0')return'NO';
+  if(n.includes('retir'))return'RET';
   return '';
 }
 
@@ -355,11 +361,12 @@ function renderKPIs(){
   const fs = filteredSessions();
   const fsLabels = new Set(fs.map(s=>s.label));
   const total = fl.length;
-  let asist=0,faltas=0,total_reg=0;
+  let asist=0,faltas=0,retirados=0,total_reg=0;
   fl.forEach(l=>l.sessions.forEach((s,i)=>{
     if(!fsLabels.has(SESSIONS[i].label)) return;
     if(s.att==='SI'){asist++;total_reg++;}
     else if(s.att==='NO'){faltas++;total_reg++;}
+    else if(s.att==='RET'){retirados++;}  // excluido del denominador
   }));
   const pct = total_reg>0 ? Math.round(asist/total_reg*100) : 0;
   const nivelLbl = currentNivel==='todos'?'líderes':currentNivel==='intermedio'?'intermedios':'nuevos';
@@ -368,6 +375,7 @@ function renderKPIs(){
   document.getElementById('k-lideres').textContent = total;
   document.getElementById('k-asist').textContent   = asist;
   document.getElementById('k-faltas').textContent  = faltas;
+  document.getElementById('k-retir').textContent   = retirados;
   document.getElementById('k-pct').textContent     = pct+'%';
   document.getElementById('hbadge').textContent    = total+' '+nivelLbl+' · '+sessLbl;
 }
@@ -407,9 +415,9 @@ function renderHeatmap(){
     l.sessions.forEach((s,i)=>{
       const td=tr.insertCell();
       const isDimCell = currentSessions.size>0 && !activeLabels.has(SESSIONS[i].label);
-      const cls = s.att==='SI'?'si':s.att==='NO'?'no':'empty';
+      const cls = s.att==='SI'?'si':s.att==='NO'?'no':s.att==='RET'?'ret':'empty';
       td.className='hm-cell '+cls+(isDimCell?' dim':'');
-      td.textContent = s.att==='SI'?'✓':s.att==='NO'?'✗':'—';
+      td.textContent = s.att==='SI'?'✓':s.att==='NO'?'✗':s.att==='RET'?'↩':'—';
       if(s.att==='NO'&&s.motivo){
         td.addEventListener('mouseenter',e=>showTip(e,`<b>${l.short} · ${s.label}</b><br>${s.motivo}`));
         td.addEventListener('mousemove',moveTip);
@@ -436,13 +444,14 @@ function renderChart(){
   const svg=d3.select(svgEl).attr('width',W).attr('height',H);
 
   const data=SESSIONS.map((s,i)=>{
-    let si=0,no=0;
+    let si=0,no=0,ret=0;
     fl.forEach(l=>{
       if(l.sessions[i].att==='SI')si++;
       else if(l.sessions[i].att==='NO')no++;
+      else if(l.sessions[i].att==='RET')ret++;
     });
-    const total=si+no;
-    return{label:s.label,si,no,pct:total>0?Math.round(si/total*100):null,active:activeLabels.has(s.label)};
+    const total=si+no; // RET excluido del denominador
+    return{label:s.label,si,no,ret,pct:total>0?Math.round(si/total*100):null,active:activeLabels.has(s.label)};
   });
 
   const margin={top:14,right:32,bottom:32,left:34};
@@ -519,7 +528,8 @@ function renderLeaderView(leaderName){
 
   const si=l.sessions.filter(s=>s.att==='SI').length;
   const no=l.sessions.filter(s=>s.att==='NO').length;
-  const reg=si+no;
+  const ret=l.sessions.filter(s=>s.att==='RET').length;
+  const reg=si+no; // RET excluido del denominador
   const pct=reg>0?Math.round(si/reg*100):null;
 
   let html=`
@@ -531,6 +541,7 @@ function renderLeaderView(leaderName){
       <div class="lh-pills">
         <span class="lpill lpill-g">✓ ${si} asistencias</span>
         <span class="lpill lpill-r">✗ ${no} faltas</span>
+        ${ret>0?`<span class="lpill lpill-a">↩ ${ret} retirado${ret>1?'s':''}</span>`:''}
         ${pct!==null?`<span class="lpill lpill-n">${pct}% cumplimiento</span>`:''}
       </div>
     </div>
@@ -538,13 +549,15 @@ function renderLeaderView(leaderName){
   <div class="sessions-timeline">`;
 
   l.sessions.forEach((s,i)=>{
-    const cls=s.att==='SI'?'si':s.att==='NO'?'no':'empty';
-    const badgeTxt=s.att==='SI'?'✓ Asistió':s.att==='NO'?'✗ Faltó':'Sin registro';
-    const motiHtml=s.att==='NO'
-      ? `<div class="sc-motivo">${s.motivo||'Sin motivo registrado'}</div>`
-      : s.att==='SI'
-        ? `<div class="sc-motivo empty-m">Sin observaciones</div>`
-        : `<div class="sc-motivo empty-m">Sin datos aún</div>`;
+    const cls=s.att==='SI'?'si':s.att==='NO'?'no':s.att==='RET'?'ret':'empty';
+    const badgeTxt=s.att==='SI'?'✓ Asistió':s.att==='NO'?'✗ Faltó':s.att==='RET'?'↩ Retirado':'Sin registro';
+    const motiHtml=s.att==='RET'
+      ? `<div class="sc-motivo">${s.motivo||'Se retiró antes de finalizar'}</div>`
+      : s.att==='NO'
+        ? `<div class="sc-motivo">${s.motivo||'Sin motivo registrado'}</div>`
+        : s.att==='SI'
+          ? `<div class="sc-motivo empty-m">Sin observaciones</div>`
+          : `<div class="sc-motivo empty-m">Sin datos aún</div>`;
     html+=`
     <div class="sess-card ${cls}">
       <div class="sc-head">
