@@ -894,18 +894,25 @@ function hideTip(){tip.classList.remove('show');}
 // ══════════ INIT ══════════
 async function init(){
   try{
-    const res=await fetch(CSV_URL,{cache:'no-cache'});
+    console.log('[init] Cargando datos…');
+    const ctrl=new AbortController();
+    const tid=setTimeout(()=>ctrl.abort(),15000);
+    const res=await fetch(CSV_URL,{cache:'no-cache',signal:ctrl.signal});
+    clearTimeout(tid);
     const text=await res.text();
     if(!text||text.length<100) throw new Error('Respuesta vacía');
     const rows=parseCSV(text);
     LEADERS=buildFromCSV(rows);
     if(!LEADERS.length) throw new Error('Sin datos de líderes');
   }catch(e){
+    const msg=e.name==='AbortError'
+      ?'Tiempo de espera agotado (15s). Abre la página desde el servidor (Netlify/HTTPS), no como archivo local.'
+      :e.message;
     document.getElementById('loading').innerHTML=`
       <div style="text-align:center;color:#dc2626;font-size:.85rem;padding:20px">
         <div style="font-size:2rem;margin-bottom:8px">⚠</div>
-        <b>${e.message}</b><br>
-        <span style="color:#64748b;font-size:.72rem">Verifica que la URL CSV esté configurada correctamente</span><br><br>
+        <b>${msg}</b><br>
+        <span style="color:#64748b;font-size:.72rem">Verifica tu conexión o la URL del CSV</span><br><br>
         <button onclick="location.reload()" style="padding:5px 14px;background:#2563eb;color:#fff;border:none;border-radius:6px;cursor:pointer">Reintentar</button>
       </div>`;
     return;
@@ -924,4 +931,32 @@ async function init(){
   setInterval(async ()=>{
     try{
       const r2  = await fetch(CSV_URL,{cache:'no-cache'});
-      const tx2 =
+      const tx2 = await r2.text();
+      const nv  = buildFromCSV(parseCSV(tx2));
+      if(JSON.stringify(nv)!==JSON.stringify(LEADERS)){
+        LEADERS=nv;
+        populateGrupoChips();
+        renderKPIs();
+        if(currentView==='general'){ renderHeatmap(); setTimeout(renderChart,50); }
+        else if(currentView==='puntualidad'){ renderHeatmapPunt(); setTimeout(renderChartPunt,50); }
+        else renderLeaderView(currentLeader);
+      }
+      const el=document.getElementById('last-update');
+      if(el) el.textContent='⟳ '+new Date().toLocaleTimeString('es-PE',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
+    }catch(e){}
+  },30000);
+
+  // Responsividad: re-renderiza el gráfico al cambiar el tamaño del contenedor
+  if(window.ResizeObserver){
+    let _rt;
+    new ResizeObserver(()=>{
+      clearTimeout(_rt);
+      _rt=setTimeout(()=>{ if(currentView==='general') renderChart(); },120);
+    }).observe(document.querySelector('.chart-wrap'));
+  }
+}
+
+window.addEventListener('load',init);
+</script>
+</body>
+</html>
