@@ -550,17 +550,38 @@ function buildNetwork() {
     memberToNodeId[m] = nodeId;
   });
 
-  // ── 5. Links — sin self-links ni duplicados
+  // ── 5. Links — sin self-links, duplicados ni redundancias jerárquicas
   const linkSet = new Set();
+  // Para cada líder, detectar qué otros líderes están en su grupo (sub-líderes directos)
+  const subLeadersOf = {};
+  ACTIVE_LEADERS.forEach(l => {
+    subLeadersOf[l.id] = new Set();
+    l.members.forEach(m => {
+      const k = m.replace(/\*/g,'').trim();
+      const tId = memberToNodeId[k];
+      if(tId && tId!==l.id && nodeMap[tId]?.type==='leader') subLeadersOf[l.id].add(tId);
+    });
+  });
+  // Link redundante: miembro puro ya accesible a través de un sub-líder → saltar
+  function isRedundant(parentId, memberNodeId){
+    for(const subId of (subLeadersOf[parentId]||[])){
+      const sub = ACTIVE_LEADERS.find(l=>l.id===subId);
+      if(sub && sub.members.some(m=>memberToNodeId[m.replace(/\*/g,'').trim()]===memberNodeId)) return true;
+    }
+    return false;
+  }
   ACTIVE_LEADERS.forEach(l => l.members.forEach(m => {
     const k = m.replace(/\*/g,'').trim();
     const targetId = memberToNodeId[k];
     if(!targetId || targetId===l.id) return;
+    // Saltar si el miembro puro ya está bajo un sub-líder de este líder
+    if(nodeMap[targetId]?.type==='member' && isRedundant(l.id, targetId)) return;
     const key = l.id+'→'+targetId;
     if(linkSet.has(key)) return;
     linkSet.add(key);
     const tNode = nodeMap[targetId];
-    const shared = tNode?.type==='member' ? tNode.teamCount>1 : true;
+    // Líder→líder: línea sólida (jerárquica). Miembro compartido: línea dashed.
+    const shared = tNode?.type==='member' ? tNode.teamCount>1 : false;
     links.push({ source:l.id, target:targetId, shared });
   }));
 
